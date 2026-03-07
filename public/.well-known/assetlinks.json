@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.soundstream.app",
+      "sha256_cert_fingerprints": [
+        "SHA256: AB:E8:13:F5:C2:97:BD:29:49:9D:34:D9:8E:E8:F7:D9:EB:CB:17:82:EB:22:56:D2:28:89:EE:32:41:39:BD:22"
+      ]
+    }
+  }
+]

@@ -5,6 +5,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
 import { BatteryOptimization } from '@capawesome-team/capacitor-android-battery-optimization';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Ganti dengan API Key ImgBB Anda
