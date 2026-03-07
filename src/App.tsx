@@ -738,6 +738,24 @@ export default function App() {
     }
   };
 
+  const handlePause = () => {
+    // Jika isPlaying masih true tapi audio terhenti (misal kena VN), coba restart setelah delay
+    if (isPlaying) {
+      setTimeout(() => {
+        if (isPlaying && audioRef.current && audioRef.current.paused) {
+          audioRef.current.play().catch(() => {
+            // Jika gagal play (mungkin VN masih jalan), biarkan isPlaying tetap true agar user bisa klik play manual
+            console.log("Auto-restart failed, possibly still interrupted");
+          });
+        }
+      }, 1000);
+    }
+  };
+
+  const handlePlay = () => {
+    if (!isPlaying) setIsPlaying(true);
+  };
+
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00";
     const mins = Math.floor(time / 60);
@@ -1378,7 +1396,16 @@ export default function App() {
         </div>
       )}
 
-      <audio ref={audioRef} src={currentTrack?.url} crossOrigin="anonymous" onTimeUpdate={handleTimeUpdate} onEnded={handleTrackEnd} onLoadedMetadata={() => { if (audioRef.current) setDuration(audioRef.current.duration); }} />
+      <audio 
+        ref={audioRef} 
+        src={currentTrack?.url} 
+        crossOrigin="anonymous" 
+        onTimeUpdate={handleTimeUpdate} 
+        onPause={handlePause}
+        onPlay={handlePlay}
+        onEnded={handleTrackEnd} 
+        onLoadedMetadata={() => { if (audioRef.current) setDuration(audioRef.current.duration); }} 
+      />
 
       {/* Import Track Modal */}
       {isImportTrackModalOpen && sharedTrackData && (
