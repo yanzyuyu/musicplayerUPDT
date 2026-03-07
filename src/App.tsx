@@ -163,32 +163,55 @@ export default function App() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const sharedData = params.get('share');
-    if (sharedData) {
+    const handleUrl = (url: string) => {
       try {
-        const decoded = JSON.parse(decodeURIComponent(escape(atob(sharedData))));
-        const playlist: Playlist = {
-          id: `shared_${Date.now()}`,
-          name: decoded.n,
-          artwork_url: decoded.a,
-          tracks: decoded.t.map((t: any) => ({
-            permalink_url: t.p,
-            title: t.t,
-            user: t.u,
-            artwork_url: t.a,
-            thumbnail: t.a,
-            duration: t.d,
-            permalink: t.p.split('/').pop() || ''
-          }))
-        };
-        setSharedPlaylistData(playlist);
-        setIsImportModalOpen(true);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        const urlObj = new URL(url);
+        const sharedData = urlObj.searchParams.get('share');
+        if (sharedData) {
+          const decodedString = decodeURIComponent(escape(atob(sharedData)));
+          const decoded = JSON.parse(decodedString);
+          const playlist: Playlist = {
+            id: `shared_${Date.now()}`,
+            name: decoded.n || "Shared Playlist",
+            artwork_url: decoded.a || "",
+            tracks: (decoded.t || []).map((t: any) => ({
+              permalink_url: t.p,
+              title: t.t || t.p.split('/').pop()?.replace(/-/g, ' ') || "Untitled",
+              user: t.u || "Unknown Artist",
+              artwork_url: t.a,
+              thumbnail: t.a,
+              duration: t.d || 0,
+              permalink: t.p.split('/').pop() || ''
+            }))
+          };
+          setSharedPlaylistData(playlist);
+          setIsImportModalOpen(true);
+          
+          if (!Capacitor.isNativePlatform()) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
       } catch (e) {
         console.error("Failed to parse shared playlist", e);
       }
-    }
+    };
+
+    // Handle initial URL (when app is closed)
+    const checkInitialUrl = async () => {
+      if (Capacitor.isNativePlatform()) {
+        const initial = await CapApp.getLaunchUrl();
+        if (initial?.url) handleUrl(initial.url);
+      } else {
+        handleUrl(window.location.href);
+      }
+    };
+
+    // Handle incoming URL (when app is open)
+    const listener = CapApp.addListener('appUrlOpen', data => {
+      handleUrl(data.url);
+    });
+
+    checkInitialUrl();
 
     const initApp = async () => {
       try {
@@ -212,6 +235,10 @@ export default function App() {
     fetchTrending();
     fetchHistory();
     loadDownloadedTracks();
+
+    return () => {
+      listener.remove();
+    };
   }, []);
 
   const fetchTrending = async () => {
