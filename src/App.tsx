@@ -144,7 +144,7 @@ export default function App() {
         }))
       };
       const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+      const shareUrl = `https://musicplayer-updt.vercel.app/?share=${encoded}`;
       
       if (navigator.share) {
         await navigator.share({
