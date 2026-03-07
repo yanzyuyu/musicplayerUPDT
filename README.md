@@ -7,9 +7,8 @@
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-8-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com/)
-[![Gemini AI](https://img.shields.io/badge/Gemini_AI-Powered-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
 
-**SoundStream** adalah aplikasi pemutar musik modern berbasis web dan mobile yang ditenagai oleh AI untuk memberikan pengalaman mendengarkan musik yang mulus, responsif, dan elegan.
+**SoundStream** adalah aplikasi pemutar musik modern berbasis web dan mobile yang memberikan pengalaman mendengarkan musik yang mulus, responsif, dan elegan.
 
 </div>
 
@@ -17,7 +16,7 @@
 
 ## ✨ Fitur Utama
 
--   **🔍 AI-Powered Search**: Cari lagu favorit Anda dengan dukungan teknologi Gemini AI.
+-   **🔍 Smart Search**: Cari lagu favorit Anda dengan cepat dan mudah.
 -   **📂 Playlist Management**: Buat, edit, dan kelola playlist musik pribadi Anda dengan mudah.
 -   **💾 Offline Downloads**: Unduh lagu favorit langsung ke perangkat Anda untuk didengarkan tanpa koneksi internet.
 -   **📜 Smart Lyrics**: Fitur lirik yang terintegrasi (eksperimental).
@@ -33,7 +32,6 @@
 -   **Styling**: Tailwind CSS 4, Framer Motion (untuk animasi yang mulus), Lucide React (icons).
 -   **Backend/Storage**: Express.js, Better-SQLite3 (untuk riwayat), LocalForage (untuk data browser).
 -   **Mobile SDK**: Capacitor (untuk build Android).
--   **AI**: Google Gemini AI API.
 
 ---
 
@@ -42,13 +40,12 @@
 ### Prasyarat
 -   [Node.js](https://nodejs.org/) (versi terbaru sangat disarankan)
 -   [Git](https://git-scm.com/)
--   [Gemini API Key](https://aistudio.google.com/app/apikey)
 
 ### Langkah-langkah
 
 1.  **Clone Repository:**
     ```bash
-    git clone https://github.com/username/musicplayer-main.git
+    git clone https://github.com/yanzyuyu/musicplayer-main.git
     cd musicplayer-main
     ```
 
@@ -57,14 +54,7 @@
     npm install
     ```
 
-3.  **Konfigurasi Environment:**
-    Salin `.env.example` menjadi `.env` dan masukkan API Key Anda:
-    ```bash
-    cp .env.example .env
-    ```
-    Isi `GEMINI_API_KEY=your_actual_key_here` di dalam file `.env`.
-
-4.  **Jalankan di Local:**
+3.  **Jalankan di Local:**
     ```bash
     npm run dev
     ```
