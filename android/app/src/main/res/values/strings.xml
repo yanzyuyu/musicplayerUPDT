@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SoundStream</string>
+    <string name="title_activity_main">SoundStream</string>
+    <string name="package_name">com.soundstream.app</string>
+    <string name="custom_url_scheme">com.soundstream.app</string>
+</resources>

@@ -1,0 +1,5 @@
+{
+  "name": "SoundCloud Music Player",
+  "description": "A free music streaming application using SoundCloud API",
+  "requestFramePermissions": []
+}
