@@ -196,6 +196,10 @@ export default function App() {
       try {
         const urlObj = new URL(url);
         const sharedData = urlObj.searchParams.get('share');
+        const trackData = urlObj.searchParams.get('track');
+
+        let shouldClearUrl = false;
+
         if (sharedData) {
           const decodedString = decodeURIComponent(escape(atob(sharedData)));
           const decoded = JSON.parse(decodedString);
@@ -215,13 +219,20 @@ export default function App() {
           };
           setSharedPlaylistData(playlist);
           setIsImportModalOpen(true);
-          
-          if (!Capacitor.isNativePlatform()) {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
+          shouldClearUrl = true;
+        } else if (trackData) {
+          const decodedString = decodeURIComponent(escape(atob(trackData)));
+          const decoded = JSON.parse(decodedString);
+          setSharedTrackData(decoded);
+          setIsImportTrackModalOpen(true);
+          shouldClearUrl = true;
+        }
+        
+        if (shouldClearUrl && !Capacitor.isNativePlatform()) {
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       } catch (e) {
-        console.error("Failed to parse shared playlist", e);
+        console.error("Failed to parse shared data", e);
       }
     };
 
@@ -799,7 +810,7 @@ export default function App() {
                   </h2>
                 </div>
                 {isLoadingTrending ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {[...Array(5)].map((_, i) => (
                       <div key={i} className="space-y-2 animate-pulse">
                         <div className="aspect-square bg-zinc-900 rounded-2xl" />
@@ -809,7 +820,7 @@ export default function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {trendingResults.slice(0, 5).map((track, idx) => (
                       <motion.div 
                         key={track.permalink_url} 
@@ -842,21 +853,22 @@ export default function App() {
               {history.length > 0 && (
                 <section>
                   <h2 className="text-xl font-bold mb-4">Recently Played</h2>
-                  <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-4">
                     {history.slice(0, 8).map((track, idx) => (
                       <div 
                         key={track.permalink_url! + idx} 
                         onClick={() => playTrack(track.permalink_url!)}
-                        className="flex-shrink-0 w-32 cursor-pointer space-y-2"
+                        className="cursor-pointer space-y-2"
                       >
-                        <img src={track.thumbnail} alt="" className="w-32 h-32 rounded-xl object-cover shadow-md" />
+                        <div className="aspect-square relative rounded-xl overflow-hidden shadow-md">
+                          <img src={track.thumbnail} alt="" className="w-full h-full object-cover" />
+                        </div>
                         <p className="text-xs font-medium text-zinc-200 truncate">{track.title}</p>
                       </div>
                     ))}
                   </div>
                 </section>
               )}
-
               <section>
                 <h2 className="text-xl font-bold mb-4">More Trending</h2>
                 <TrackList 
