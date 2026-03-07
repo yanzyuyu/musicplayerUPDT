@@ -13,6 +13,8 @@
   "dependencies": {
     "@capacitor/core": "^8.2.0",
     "@capacitor/local-notifications": "^8.0.2",
+    "@capawesome-team/capacitor-android-battery-optimization": "^8.0.1",
+    "@capawesome-team/capacitor-android-foreground-service": "^8.0.1",
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",

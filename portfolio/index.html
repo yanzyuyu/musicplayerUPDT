@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundStream - Modern Music Experience</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .bg-zinc-950 { background-color: #09090b; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        .reveal { opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-50 antialiased overflow-x-hidden">
+
+    <!-- Navbar -->
+    <header class="fixed top-0 w-full z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
+        <nav class="container mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-2 font-bold text-xl tracking-tight">
+                <i data-lucide="music" class="text-emerald-500"></i>
+                <span>SoundStream</span>
+            </div>
+            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
+                <a href="#features" class="hover:text-emerald-500 transition-colors">Features</a>
+                <a href="#preview" class="hover:text-emerald-500 transition-colors">Preview</a>
+                <a href="https://github.com/yanzyuyu" target="_blank" class="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-full text-zinc-100 hover:border-emerald-500/50 transition-all">
+                    <i data-lucide="github" class="w-4 h-4"></i> GitHub
+                </a>
+            </div>
+            <!-- Mobile GitHub Only -->
+            <div class="md:hidden">
+                <a href="https://github.com/yanzyuyu" target="_blank" class="p-2 bg-zinc-900 border border-zinc-800 rounded-full inline-block">
+                    <i data-lucide="github" class="w-5 h-5"></i>
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="container mx-auto px-6 pt-32 pb-20 lg:pt-48 lg:pb-32 flex flex-col lg:flex-row items-center gap-12 lg:gap-24">
+            <div class="flex-1 text-center lg:text-left">
+                <span class="inline-block bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-4 py-1.5 rounded-full text-xs font-semibold mb-6 uppercase tracking-wider">
+                    Version 1.0 Available
+                </span>
+                <h1 class="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight">
+                    Modern Music Player for <span class="text-emerald-500">Every Moment</span>.
+                </h1>
+                <p class="text-zinc-400 text-lg md:text-xl mb-10 max-w-xl mx-auto lg:mx-0">
+                    Nikmati pengalaman mendengarkan musik yang mulus, responsif, dan elegan. SoundStream hadir dengan dukungan pencarian pintar dan fitur unduh luring.
+                </p>
+                <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                    <a href="https://musicplayer-updt.vercel.app/" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/20">
+                        <i data-lucide="layout" class="w-5 h-5"></i> Open Web App
+                    </a>
+                    <a href="#" class="w-full sm:w-auto bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all download-apk">
+                        <i data-lucide="smartphone" class="w-5 h-5"></i> Download APK
+                    </a>
+                </div>
+            </div>
+            <div class="flex-1 flex justify-center relative">
+                <!-- Glow Effect -->
+                <div class="absolute inset-0 bg-emerald-500/20 blur-[120px] rounded-full scale-75 animate-pulse"></div>
+                <div class="relative w-[260px] md:w-[300px] animate-float">
+                    <div class="bg-zinc-900 p-2.5 rounded-[40px] border-[6px] border-zinc-800 shadow-2xl aspect-[9/19] overflow-hidden">
+                        <div class="w-full h-full bg-black rounded-[30px] overflow-hidden">
+                            <img src="https://i.ibb.co.com/WNJKVwZg/Whats-App-Image-2026-03-07-at-15-58-02.jpg" alt="App Preview" class="w-full h-full object-cover">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="py-24 bg-zinc-950">
+            <div class="container mx-auto px-6">
+                <div class="text-center max-w-3xl mx-auto mb-20 reveal">
+                    <h2 class="text-3xl md:text-5xl font-bold mb-6">Powerful <span class="text-emerald-500">Features</span></h2>
+                    <p class="text-zinc-400 text-lg">Segala yang Anda butuhkan dalam satu pemutar musik yang ringan dan cepat.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Feature Cards -->
+                    <div class="bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group reveal">
+                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <i data-lucide="search"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">Smart Search</h3>
+                        <p class="text-zinc-400 text-sm leading-relaxed">Cari jutaan lagu dan artis favorit Anda dengan hasil yang akurat dan cepat.</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group reveal">
+                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <i data-lucide="download"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">Offline Player</h3>
+                        <p class="text-zinc-400 text-sm leading-relaxed">Unduh lagu favorit langsung ke penyimpanan perangkat untuk didengarkan tanpa kuota.</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group reveal">
+                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <i data-lucide="list-music"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">Playlists</h3>
+                        <p class="text-zinc-400 text-sm leading-relaxed">Kelola koleksi musik Anda ke dalam playlist yang rapi dan terorganisir.</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group reveal">
+                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <i data-lucide="mic-2"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">Smart Lyrics</h3>
+                        <p class="text-zinc-400 text-sm leading-relaxed">Sinkronisasi lirik yang cerdas untuk menemani waktu bernyanyi Anda.</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group reveal">
+                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <i data-lucide="history"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">History</h3>
+                        <p class="text-zinc-400 text-sm leading-relaxed">Jangan pernah lupa lagu yang baru saja Anda dengarkan dengan riwayat otomatis.</p>
+                    </div>
+                    <div class="bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all group reveal">
+                        <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <i data-lucide="zap"></i>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">Performance</h3>
+                        <p class="text-zinc-400 text-sm leading-relaxed">Aplikasi super ringan dan cepat, dioptimalkan untuk performa maksimal di semua perangkat.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Preview/Detail Section -->
+        <section id="preview" class="py-24 bg-black/50">
+            <div class="container mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
+                <div class="flex-1 reveal">
+                    <h2 class="text-3xl md:text-5xl font-bold mb-8 leading-tight">Experience it <span class="text-emerald-500">Everywhere</span></h2>
+                    <p class="text-zinc-400 text-lg mb-8">Tersedia sebagai Aplikasi Web Progresif (PWA) yang bisa diinstal di komputer, atau aplikasi Android asli untuk pengalaman mobile terbaik.</p>
+                    <ul class="space-y-4">
+                        <li class="flex items-center gap-4 text-zinc-300">
+                            <i data-lucide="check-circle-2" class="text-emerald-500"></i> Material Design UI
+                        </li>
+                        <li class="flex items-center gap-4 text-zinc-300">
+                            <i data-lucide="check-circle-2" class="text-emerald-500"></i> Background Playback Support
+                        </li>
+                        <li class="flex items-center gap-4 text-zinc-300">
+                            <i data-lucide="check-circle-2" class="text-emerald-500"></i> High Quality Audio
+                        </li>
+                    </ul>
+                </div>
+                <div class="flex-1 w-full reveal">
+                    <img src="https://i.ibb.co.com/Rp7nbgZf/Screenshot-2026-03-07-155456.png" alt="Dashboard" class="rounded-3xl border border-zinc-800 shadow-2xl">
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Bottom -->
+        <section class="py-24 container mx-auto px-6">
+            <div class="bg-zinc-900 border border-zinc-800 rounded-[40px] p-10 md:p-20 text-center relative overflow-hidden reveal">
+                <!-- Background Ambient Glow -->
+                <div class="absolute -top-24 -left-24 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full"></div>
+                
+                <h2 class="text-3xl md:text-5xl font-bold mb-6 relative z-10">Siap mendengarkan musik?</h2>
+                <p class="text-zinc-400 text-lg mb-10 max-w-2xl mx-auto relative z-10">Coba SoundStream sekarang dan rasakan perbedaannya. Tanpa iklan, tanpa biaya, murni pengalaman musik.</p>
+                <div class="flex justify-center relative z-10">
+                    <button class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-12 py-5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-500/20 download-apk">
+                        Unduh Sekarang (APK)
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="py-12 border-t border-zinc-900 text-center">
+        <div class="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6 text-zinc-500 text-sm">
+            <div class="flex items-center gap-2 font-bold text-zinc-300">
+                <i data-lucide="music" class="text-emerald-500 w-5 h-5"></i>
+                <span>SoundStream</span>
+            </div>
+            <div>&copy; 2026 SoundStream. Crafted with ❤️ by <a href="https://github.com/yanzyuyu" target="_blank" class="text-zinc-300 hover:text-emerald-500">yanzyuyu</a></div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+
+            // Reveal Animation
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) entry.target.classList.add('active');
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+            // APK Download Simulation
+            const downloadButtons = document.querySelectorAll('.download-apk');
+            downloadButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const originalContent = btn.innerHTML;
+                    btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5 h-5"></i> Preparing...';
+                    lucide.createIcons();
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = originalContent;
+                        lucide.createIcons();
+                        
+                        // Actual Download
+                        const link = document.createElement('a');
+                        link.href = 'SoundStream.apk';
+                        link.download = 'SoundStream.apk';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }, 1500);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

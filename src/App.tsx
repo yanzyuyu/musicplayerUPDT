@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, Play, Pause, Volume2, Loader2, Music, SkipBack, SkipForward, Mic2, X, Plus, ListMusic, Trash2, ArrowLeft, History, Repeat, Repeat1, Shuffle, Download, CheckCircle2, HardDriveDownload, Flame } from 'lucide-react';
 import localforage from 'localforage';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
+import { BatteryOptimization } from '@capawesome-team/capacitor-android-battery-optimization';
+import { Capacitor } from '@capacitor/core';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SearchResult {
@@ -83,18 +86,62 @@ export default function App() {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationRef = useRef<number>(0);
 
-  useEffect(() => {
-    const requestPermissions = async () => {
+  const startForeground = async () => {
+    if (Capacitor.getPlatform() === 'android') {
       try {
+        await ForegroundService.startForegroundService({
+          id: 12345,
+          title: currentTrack ? currentTrack.title : 'SoundStream',
+          body: currentTrack ? `Playing: ${currentTrack.user}` : 'Ready to play',
+          smallIcon: 'ic_launcher_foreground',
+          channelId: 'foreground_service_channel'
+        });
+      } catch (e) {
+        console.error('Failed to update foreground service info', e);
+      }
+    }
+  };
+
+  const stopForeground = async () => {
+    if (Capacitor.getPlatform() === 'android') {
+      try {
+        await ForegroundService.stopForegroundService();
+      } catch (e) {
+        console.error('Failed to stop foreground service', e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    startForeground();
+  }, [isPlaying, currentTrack]);
+
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        if (Capacitor.getPlatform() === 'android') {
+          // 1. Request notification permissions (Android 13+)
+          await ForegroundService.requestPermissions();
+          
+          // 2. Request Ignore Battery Optimization
+          const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
+          if (enabled) {
+            await BatteryOptimization.requestIgnoreBatteryOptimization();
+          }
+
+          // 3. Start initial service
+          startForeground();
+        }
+
         const status = await LocalNotifications.checkPermissions();
         if (status.display !== 'granted') {
           await LocalNotifications.requestPermissions();
         }
       } catch (e) {
-        console.warn("Notification permissions not supported or failed", e);
+        console.warn("Permissions not supported or failed", e);
       }
     };
-    requestPermissions();
+    initApp();
     fetchTrending();
   }, []);
 
@@ -665,6 +712,34 @@ export default function App() {
       });
     }
   }, [progress, isPlaying]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    let resumeInterval: any;
+
+    const handleSystemPause = () => {
+      if (isPlaying) {
+        if (resumeInterval) clearInterval(resumeInterval);
+        resumeInterval = setInterval(() => {
+          if (isPlaying && audio.paused) {
+            audio.play().then(() => {
+              clearInterval(resumeInterval);
+            }).catch(() => {});
+          } else {
+            clearInterval(resumeInterval);
+          }
+        }, 2000);
+      }
+    };
+
+    audio.addEventListener('pause', handleSystemPause);
+    return () => {
+      audio.removeEventListener('pause', handleSystemPause);
+      if (resumeInterval) clearInterval(resumeInterval);
+    };
+  }, [isPlaying]);
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-50 flex flex-col font-sans overflow-hidden">
