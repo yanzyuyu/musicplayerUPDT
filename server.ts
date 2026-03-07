@@ -41,8 +41,6 @@ async function startServer() {
   app.post("/api/history", (req, res) => {
     try {
       const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
-      
-      // Check if it already exists to avoid duplicates, or just insert. Let's just insert to keep a true history.
       const stmt = db.prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
       const info = stmt.run(title, url, permalink_url, thumbnail, duration, user, description);
       res.json({ success: true, id: info.lastInsertRowid });
