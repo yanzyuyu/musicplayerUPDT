@@ -78,7 +78,9 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditPlaylistModalOpen, setIsEditPlaylistModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImportTrackModalOpen, setIsImportTrackModalOpen] = useState(false);
   const [sharedPlaylistData, setSharedPlaylistData] = useState<Playlist | null>(null);
+  const [sharedTrackData, setSharedTrackData] = useState<any | null>(null);
   const [playlistToEdit, setPlaylistToEdit] = useState<Playlist | null>(null);
   const [editPlaylistName, setEditPlaylistName] = useState('');
   const [editPlaylistImage, setEditPlaylistImage] = useState('');
@@ -130,6 +132,60 @@ export default function App() {
   useEffect(() => {
     startForeground();
   }, [isPlaying, currentTrack]);
+
+  const shareTrack = async (track: any) => {
+    try {
+      const data = {
+        t: track.title || track.permalink?.replace(/-/g, ' '),
+        u: track.user || getArtistFromUrl(track.permalink_url),
+        a: track.artwork_url || track.thumbnail,
+        d: track.duration,
+        p: track.permalink_url
+      };
+      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      const shareUrl = `https://musicplayer-updt.vercel.app/?track=${encoded}`;
+      
+      if (navigator.share) {
+        await navigator.share({
+          title: `Lagu: ${data.t}`,
+          text: `Dengarkan "${data.t}" oleh ${data.u} di SoundStream!`,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Link lagu berhasil disalin!");
+      }
+    } catch (e) {
+      console.error("Sharing track failed", e);
+    }
+  };
+
+  const shareTrack = async (track: any) => {
+    try {
+      const data = {
+        t: track.title || track.permalink?.replace(/-/g, ' '),
+        u: track.user || getArtistFromUrl(track.permalink_url),
+        a: track.artwork_url || track.thumbnail,
+        d: track.duration,
+        p: track.permalink_url
+      };
+      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      const shareUrl = `https://musicplayer-updt.vercel.app/?track=${encoded}`;
+      
+      if (navigator.share) {
+        await navigator.share({
+          title: `Lagu: ${data.t}`,
+          text: `Dengarkan "${data.t}" oleh ${data.u} di SoundStream!`,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Link lagu berhasil disalin!");
+      }
+    } catch (e) {
+      console.error("Sharing track failed", e);
+    }
+  };
 
   const sharePlaylist = async (playlist: Playlist) => {
     try {
@@ -1157,6 +1213,14 @@ export default function App() {
                     <Mic2 className="w-6 h-6" />
                     <span className="text-[10px] font-bold uppercase tracking-widest">Lirik</span>
                   </button>
+
+                  <button 
+                    onClick={() => shareTrack(currentTrack)} 
+                    className="flex flex-col items-center gap-1 text-zinc-500 active:text-emerald-500 transition-colors"
+                  >
+                    <Share2 className="w-6 h-6" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Share</span>
+                  </button>
                   
                   <button 
                     onClick={(e) => openAddModal(e, {
@@ -1321,6 +1385,49 @@ export default function App() {
 
       <audio ref={audioRef} src={currentTrack?.url} crossOrigin="anonymous" onTimeUpdate={handleTimeUpdate} onEnded={handleTrackEnd} onLoadedMetadata={() => { if (audioRef.current) setDuration(audioRef.current.duration); }} />
 
+      {/* Import Track Modal */}
+      {isImportTrackModalOpen && sharedTrackData && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-zinc-800">
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto text-emerald-500">
+                <Share2 className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-bold">Putar Lagu yang Dibagikan?</h3>
+              <div className="flex items-center gap-4 p-4 bg-zinc-800 rounded-2xl text-left">
+                <img src={sharedTrackData.a} alt="" className="w-16 h-16 rounded-xl object-cover" />
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-bold truncate">{sharedTrackData.t}</h4>
+                  <p className="text-zinc-500 text-sm truncate">{sharedTrackData.u}</p>
+                </div>
+              </div>
+              
+              <div className="pt-4 space-y-3">
+                <button 
+                  onClick={() => {
+                    playTrack(sharedTrackData.p);
+                    setIsImportTrackModalOpen(false);
+                    setSharedTrackData(null);
+                  }}
+                  className="w-full bg-emerald-500 text-zinc-950 py-4 rounded-xl font-bold active:scale-95 transition-transform shadow-lg"
+                >
+                  Putar Sekarang
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsImportTrackModalOpen(false);
+                    setSharedTrackData(null);
+                  }}
+                  className="w-full bg-zinc-800 text-white py-4 rounded-xl font-bold active:scale-95 transition-transform"
+                >
+                  Abaikan
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Import Modal */}
       {isImportModalOpen && sharedPlaylistData && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
@@ -1407,6 +1514,7 @@ const TrackList = ({
               {downloadingTracks.has(track.permalink_url) ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
             </button>
           )}
+          <button onClick={(e) => { e.stopPropagation(); shareTrack(track); }} className="p-2 text-zinc-700 hover:text-emerald-500 transition-colors"><Share2 className="w-5 h-5" /></button>
           {showRemove ? (
             <button onClick={() => removeFromPlaylist(playlistId, track.permalink_url)} className="p-2 text-zinc-700 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
           ) : (
