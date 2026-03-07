@@ -160,33 +160,6 @@ export default function App() {
     }
   };
 
-  const shareTrack = async (track: any) => {
-    try {
-      const data = {
-        t: track.title || track.permalink?.replace(/-/g, ' '),
-        u: track.user || getArtistFromUrl(track.permalink_url),
-        a: track.artwork_url || track.thumbnail,
-        d: track.duration,
-        p: track.permalink_url
-      };
-      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-      const shareUrl = `https://musicplayer-updt.vercel.app/?track=${encoded}`;
-      
-      if (navigator.share) {
-        await navigator.share({
-          title: `Lagu: ${data.t}`,
-          text: `Dengarkan "${data.t}" oleh ${data.u} di SoundStream!`,
-          url: shareUrl,
-        });
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        alert("Link lagu berhasil disalin!");
-      }
-    } catch (e) {
-      console.error("Sharing track failed", e);
-    }
-  };
-
   const sharePlaylist = async (playlist: Playlist) => {
     try {
       const data = {
