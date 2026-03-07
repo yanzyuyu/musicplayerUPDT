@@ -193,10 +193,14 @@ export default function App() {
 
   useEffect(() => {
     const handleUrl = (url: string) => {
+      console.log("Handling URL:", url);
       try {
-        const urlObj = new URL(url);
-        const sharedData = urlObj.searchParams.get('share');
-        const trackData = urlObj.searchParams.get('track');
+        // Gunakan URLSearchParams secara langsung dari string setelah tanda '?'
+        const searchPart = url.includes('?') ? url.split('?')[1] : '';
+        const params = new URLSearchParams(searchPart);
+        
+        const sharedData = params.get('share');
+        const trackData = params.get('track');
 
         let shouldClearUrl = false;
 
@@ -220,7 +224,10 @@ export default function App() {
           setSharedPlaylistData(playlist);
           setIsImportModalOpen(true);
           shouldClearUrl = true;
-        } else if (trackData) {
+        } 
+        
+        // PENTING: Gunakan 'if' terpisah atau pastikan trackData diproses
+        if (trackData) {
           const decodedString = decodeURIComponent(escape(atob(trackData)));
           const decoded = JSON.parse(decodedString);
           setSharedTrackData(decoded);
@@ -981,16 +988,19 @@ export default function App() {
                               <span className="text-xs font-bold text-emerald-500 uppercase tracking-widest">Playlist</span>
                             </div>
                             <h3 className="text-3xl sm:text-5xl font-bold mb-4">{activePlaylist.name}</h3>
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                               <button 
                                onClick={() => playPlaylist(activePlaylist)}
-                               className="bg-emerald-500 text-zinc-950 px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg"
+                               className="bg-emerald-500 text-zinc-950 px-6 sm:px-8 py-2.5 sm:py-3 rounded-full font-bold flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg text-sm sm:text-base"
                               >
-                               <Play className="w-5 h-5 fill-current" /> Play
+                               <Play className="w-4 h-4 sm:w-5 h-5 fill-current" /> Play
                               </button>
-                              <button onClick={() => sharePlaylist(activePlaylist)} className="p-3 bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors text-emerald-500"><Share2 className="w-5 h-5" /></button>
-                              <button onClick={(e) => openEditPlaylistModal(e, activePlaylist)} className="p-3 bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors"><Edit3 className="w-5 h-5" /></button>
-                              <button onClick={() => deletePlaylist(activePlaylist.id)} className="p-3 bg-zinc-900 rounded-full hover:bg-red-500/20 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5" /></button>                            </div>
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <button onClick={() => sharePlaylist(activePlaylist)} className="p-2.5 sm:p-3 bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors text-emerald-500"><Share2 className="w-4 h-4 sm:w-5 h-5" /></button>
+                                <button onClick={(e) => openEditPlaylistModal(e, activePlaylist)} className="p-2.5 sm:p-3 bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors"><Edit3 className="w-4 h-4 sm:w-5 h-5" /></button>
+                                <button onClick={() => deletePlaylist(activePlaylist.id)} className="p-2.5 sm:p-3 bg-zinc-900 rounded-full hover:bg-red-500/20 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4 sm:w-5 h-5" /></button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div className="pt-4">
