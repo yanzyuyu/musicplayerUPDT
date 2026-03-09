@@ -22,6 +22,12 @@ interface SearchResult {
   playback_count?: number;
   title?: string;
   user?: string;
+  // Spotify specific
+  id?: string;
+  name?: string;
+  artists?: any[];
+  album?: any;
+  external_urls?: any;
 }
 
 interface TrackDetails {
@@ -48,6 +54,8 @@ export default function App() {
   const [trendingResults, setTrendingResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingTrending, setIsLoadingTrending] = useState(false);
+  const [searchSource, setSearchSource] = useState<'soundcloud' | 'spotify'>('soundcloud');
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   
   const [currentTrack, setCurrentTrack] = useState<TrackDetails | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -291,16 +299,75 @@ export default function App() {
   const fetchTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      const res = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=top%20hits%202026`);
+      // Mencari lagu yang sedang populer dengan query lebih umum
+      const url = `https://yt-search-and-download-mp3.p.rapidapi.com/search?q=${encodeURIComponent('Spotify Top Hits')}&limit=15`;
+      const options = {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+          'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+        }
+      };
+
+      const res = await fetch(url, options);
       const data = await res.json();
-      if (data.status && data.data) {
-        const filtered = data.data.filter((t: any) => t.duration && t.duration > 0);
-        setTrendingResults(filtered.slice(0, 15));
+      
+      if (data && data.videos) {
+        const mapped = data.videos.map((t: any) => ({
+          id: t.id,
+          title: t.name,
+          user: "Spotify Popular",
+          artwork_url: t.thumbnail,
+          thumbnail: t.thumbnail,
+          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+          duration: 0,
+          permalink: t.id
+        }));
+        setTrendingResults(mapped);
       }
     } catch (error) {
       console.error("Failed to fetch trending:", error);
     } finally {
       setIsLoadingTrending(false);
+    }
+  };
+
+  const searchByGenre = async (genre: string) => {
+    setQuery(genre);
+    setSearchSource('spotify'); // Gunakan YouTube (sebagai Spotify) untuk genre
+    
+    setIsSearching(true);
+    try {
+      const musicQuery = `${genre} song official`;
+      const url = `https://yt-search-and-download-mp3.p.rapidapi.com/search?q=${encodeURIComponent(musicQuery)}&limit=20`;
+      const options = {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+          'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+        }
+      };
+
+      const res = await fetch(url, options);
+      const data = await res.json();
+      
+      if (data && data.videos) {
+        const mapped = data.videos.map((t: any) => ({
+          id: t.id,
+          title: t.name,
+          user: "YouTube Music",
+          artwork_url: t.thumbnail,
+          thumbnail: t.thumbnail,
+          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+          duration: 0,
+          permalink: t.id
+        }));
+        setResults(mapped);
+      }
+    } catch (error) {
+      console.error("Genre search error:", error);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -363,27 +430,70 @@ export default function App() {
   const downloadTrack = async (e: React.MouseEvent, track: SearchResult | TrackDetails) => {
     e.stopPropagation();
     if (!track.permalink_url) return;
-    setDownloadingTracks(prev => new Set(prev).add(track.permalink_url!));
+    const permalink_url = track.permalink_url;
+    setDownloadingTracks(prev => new Set(prev).add(permalink_url));
+    
     try {
-      const metaRes = await fetch(`https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(track.permalink_url)}`);
-      const metaData = await metaRes.json();
-      if (!metaData.status || !metaData.data) throw new Error("Failed to fetch metadata");
+      const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
+      const isSpotify = permalink_url.includes('spotify.com');
       
-      const artist = metaData.data.user || getArtistFromUrl(track.permalink_url);
-      const metadata = { ...metaData.data, user: artist, permalink_url: track.permalink_url };
+      let metadata: any = null;
+
+      if (isYouTube) {
+        // Use RapidAPI for YouTube Download
+        const downloadUrl = `https://yt-search-and-download-mp3.p.rapidapi.com/mp3?url=${encodeURIComponent(permalink_url)}`;
+        const options = {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+            'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+          }
+        };
+        const res = await fetch(downloadUrl, options);
+        const data = await res.json();
+        if (data && data.download) {
+          metadata = {
+            title: data.title || track.title,
+            url: data.download,
+            user: "YouTube Music",
+            thumbnail: track.thumbnail || track.artwork_url || `https://i.ytimg.com/vi/${permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop()}/hqdefault.jpg`,
+            permalink_url: permalink_url
+          };
+        }
+      } else {
+        // Use siputzx for SoundCloud/Spotify
+        const apiEndpoint = isSpotify 
+          ? `https://api.siputzx.my.id/api/d/spotify?url=${encodeURIComponent(permalink_url)}`
+          : `https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`;
+        
+        const metaRes = await fetch(apiEndpoint);
+        const metaData = await metaRes.json();
+        if (metaData.status && metaData.data) {
+          const artist = metaData.data.user || (isSpotify ? metaData.data.artist : getArtistFromUrl(permalink_url));
+          metadata = { 
+            ...metaData.data, 
+            user: artist, 
+            permalink_url: permalink_url,
+            thumbnail: metaData.data.thumbnail || metaData.data.artwork_url || metaData.data.image
+          };
+        }
+      }
+
+      if (!metadata || !metadata.url) throw new Error("Failed to get download URL");
       
       const audioRes = await fetch(metadata.url);
-      if (!audioRes.ok) throw new Error("Failed to fetch audio");
+      if (!audioRes.ok) throw new Error("Failed to fetch audio file");
       const blob = await audioRes.blob();
-      await localforage.setItem(`track_${track.permalink_url}`, { metadata, blob });
+      
+      await localforage.setItem(`track_${permalink_url}`, { metadata, blob });
       await loadDownloadedTracks();
     } catch (error) {
       console.error("Download failed:", error);
-      alert("Failed to download track.");
+      alert("Gagal mengunduh lagu untuk offline.");
     } finally {
       setDownloadingTracks(prev => {
         const next = new Set(prev);
-        next.delete(track.permalink_url!);
+        next.delete(permalink_url);
         return next;
       });
     }
@@ -573,13 +683,44 @@ export default function App() {
     }
     setIsSearching(true);
     try {
-      const res = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data.status && data.data) {
-        const filtered = data.data.filter((t: any) => t.duration && t.duration > 0);
-        setResults(filtered);
+      if (searchSource === 'soundcloud') {
+        const res = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.status && data.data) {
+          const filtered = data.data.filter((t: any) => t.duration && t.duration > 0);
+          setResults(filtered);
+        } else setResults([]);
+      } else {
+        // YouTube Search via RapidAPI (Labels as Spotify, works in APK)
+        // Tambahkan keyword "song" atau "official" agar hasil lebih relevan dengan musik
+        const musicQuery = `${query} song official`;
+        const url = `https://yt-search-and-download-mp3.p.rapidapi.com/search?q=${encodeURIComponent(musicQuery)}&limit=20`;
+        const options = {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+            'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+          }
+        };
+
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`RapidAPI Error: ${res.status}`);
+        const data = await res.json();
+        
+        if (data && data.videos) {
+          const mapped = data.videos.map((t: any) => ({
+            id: t.id,
+            title: t.name,
+            user: "YouTube Music",
+            artwork_url: t.thumbnail,
+            thumbnail: t.thumbnail,
+            permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+            duration: 0, // Duration is string like "5:22", need conversion if needed
+            permalink: t.id
+          }));
+          setResults(mapped);
+        } else setResults([]);
       }
-      else setResults([]);
     } catch (error) {
       console.error("Search error:", error);
       setResults([]);
@@ -626,19 +767,67 @@ export default function App() {
         setIsLoadingTrack(false);
         return;
       }
-      const res = await fetch(`https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`);
-      const data = await res.json();
-      if (data.status && data.data) {
-        const artist = data.data.user || getArtistFromUrl(permalink_url);
-        const trackWithArtist = { ...data.data, user: artist };
+
+      // Check if it's a Spotify or YouTube URL
+      const isSpotify = permalink_url.includes('spotify.com');
+      const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
+      
+      let trackWithArtist: any = null;
+
+      if (isYouTube) {
+        // Use RapidAPI for YouTube Download (Stable for APK)
+        const downloadUrl = `https://yt-search-and-download-mp3.p.rapidapi.com/mp3?url=${encodeURIComponent(permalink_url)}`;
+        const options = {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+            'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+          }
+        };
+
+        const res = await fetch(downloadUrl, options);
+        const data = await res.json();
+
+        if (data && data.download) {
+          trackWithArtist = {
+            title: data.title || "YouTube Track",
+            user: "YouTube Music",
+            url: data.download,
+            thumbnail: `https://i.ytimg.com/vi/${permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop()}/hqdefault.jpg`,
+            permalink_url: permalink_url
+          };
+        }
+      } else {
+        // Use siputzx for SoundCloud/Spotify
+        let apiEndpoint = `https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`;
+        if (isSpotify) {
+          apiEndpoint = `https://api.siputzx.my.id/api/d/spotify?url=${encodeURIComponent(permalink_url)}`;
+        }
+
+        const res = await fetch(apiEndpoint);
+        const data = await res.json();
+        
+        if (data.status && data.data) {
+          const artist = data.data.user || (isSpotify ? data.data.artist : getArtistFromUrl(permalink_url));
+          trackWithArtist = { 
+            ...data.data, 
+            user: artist || "Unknown Artist",
+            thumbnail: data.data.thumbnail || data.data.artwork_url || data.data.image,
+            permalink_url: permalink_url
+          };
+        }
+      }
+
+      if (trackWithArtist) {
         setCurrentTrack(trackWithArtist);
         setIsPlaying(true);
         fetch('/api/history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...trackWithArtist, permalink_url })
+          body: JSON.stringify(trackWithArtist)
         }).catch(console.error);
-        if (isLyricsOpen) fetchLyrics(data.data.title);
+        
+        if (isLyricsOpen) fetchLyrics(trackWithArtist.title);
         else setLyrics(null);
       }
     } catch (error) {
@@ -790,9 +979,12 @@ export default function App() {
     }
   }, [currentTrack]);
 
-  const isTrackInAnyPlaylist = currentTrack && playlists.some(p => 
-    p.tracks.some(t => t.permalink_url === currentTrack.permalink_url)
-  );
+  const isTrackInAnyPlaylist = React.useMemo(() => {
+    if (!currentTrack || !currentTrack.permalink_url) return false;
+    return playlists.some(p => 
+      p.tracks.some(t => t.permalink_url === currentTrack.permalink_url)
+    );
+  }, [currentTrack, playlists]);
 
   const playPlaylist = (playlist: Playlist) => {
     if (playlist.tracks.length === 0) return;
@@ -915,14 +1107,31 @@ export default function App() {
               exit={{ opacity: 0 }}
               className="p-6 space-y-6"
             >
-              <h2 className="text-3xl font-bold">Search</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-bold">Search</h2>
+                <div className="flex bg-zinc-900 rounded-full p-1 border border-zinc-800">
+                  <button 
+                    onClick={() => setSearchSource('soundcloud')}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${searchSource === 'soundcloud' ? 'bg-orange-500 text-white shadow-lg' : 'text-zinc-500'}`}
+                  >
+                    SoundCloud
+                  </button>
+                  <button 
+                    onClick={() => setSearchSource('spotify')}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${searchSource === 'spotify' ? 'bg-emerald-500 text-white shadow-lg' : 'text-zinc-500'}`}
+                  >
+                    Spotify
+                  </button>
+                </div>
+              </div>
+
               <form onSubmit={handleSearch} className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
                 <input 
                   type="search" 
                   value={query} 
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Songs, artists, or podcasts" 
+                  placeholder={searchSource === 'spotify' ? "Search Spotify..." : "Search SoundCloud..."} 
                   className="w-full bg-zinc-900/50 border border-zinc-800 focus:border-emerald-500/50 rounded-2xl py-4 pl-12 pr-4 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all shadow-inner"
                 />
               </form>
@@ -943,7 +1152,11 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-2 gap-4 pt-4">
                   {['Pop', 'Rock', 'Indie', 'Jazz', 'Electronic', 'Hip Hop'].map(genre => (
-                    <div key={genre} className="h-24 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 p-4 font-bold text-lg flex items-end hover:scale-[1.02] transition-transform cursor-pointer shadow-md">
+                    <div 
+                      key={genre} 
+                      onClick={() => searchByGenre(genre)}
+                      className="h-24 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 p-4 font-bold text-lg flex items-end hover:scale-[1.02] transition-transform cursor-pointer shadow-md"
+                    >
                       {genre}
                     </div>
                   ))}
@@ -1192,15 +1405,24 @@ export default function App() {
                 <div className="space-y-2">
                   <div className="relative h-2 bg-zinc-800/50 rounded-full group cursor-pointer">
                     <input 
-                      type="range" min={0} max={duration || 100} value={progress} 
+                      type="range" 
+                      min={0} 
+                      max={duration || 100} 
+                      value={progress} 
                       onChange={(e) => {
                         const time = Number(e.target.value);
-                        if (audioRef.current) { audioRef.current.currentTime = time; setProgress(time); }
+                        setProgress(time);
+                        if (audioRef.current) {
+                          audioRef.current.currentTime = time;
+                        }
                       }}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
                     />
-                    <div className="absolute top-0 left-0 h-full bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-all" style={{ width: `${(progress / duration) * 100}%` }}>
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full scale-0 group-hover:scale-100 transition-transform" />
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-all duration-75" 
+                      style={{ width: `${duration > 0 ? (progress / duration) * 100 : 0}%` }}
+                    >
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full scale-0 group-hover:scale-100 group-active:scale-110 transition-transform shadow-lg" />
                     </div>
                   </div>
                   <div className="flex justify-between text-xs font-medium text-zinc-500 tabular-nums">
@@ -1307,6 +1529,28 @@ export default function App() {
         <NavButton active={activeTab === 'search'} icon={<Search className="w-6 h-6" />} label="Search" onClick={() => setActiveTab('search')} />
         <NavButton active={activeTab === 'library'} icon={<ListMusic className="w-6 h-6" />} label="Library" onClick={() => setActiveTab('library')} />
       </nav>
+
+      {/* Loading Overlay for Playback */}
+      <AnimatePresence>
+        {isLoadingTrack && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-6"
+          >
+            <div className="relative">
+              <div className="w-24 h-24 border-4 border-emerald-500/20 rounded-full" />
+              <div className="absolute inset-0 w-24 h-24 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <Music className="absolute inset-0 m-auto w-10 h-10 text-emerald-500 animate-pulse" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-bold text-white">Menyiapkan Musik...</h3>
+              <p className="text-zinc-400 text-sm animate-pulse">Sedang mengambil kualitas audio terbaik</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Create/Add Modal */}
       {isAddModalOpen && (
