@@ -3,7 +3,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.soundstream.app',
   appName: 'SoundStream',
-  webDir: 'dist'
+  webDir: 'dist',
+  plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 };
 
 export default config;

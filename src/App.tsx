@@ -299,29 +299,22 @@ export default function App() {
   const fetchTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      // Mencari lagu yang sedang populer dengan query lebih umum
-      const url = `https://yt-search-and-download-mp3.p.rapidapi.com/search?q=${encodeURIComponent('Spotify Top Hits')}&limit=15`;
-      const options = {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-          'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
-        }
-      };
-
-      const res = await fetch(url, options);
+      // Mencari lagu yang sedang populer via Siputzx
+      const url = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent('Spotify Top Hits 2024')}`;
+      
+      const res = await fetch(url);
       const data = await res.json();
       
-      if (data && data.videos) {
-        const mapped = data.videos.map((t: any) => ({
-          id: t.id,
-          title: t.name,
+      if (data.status && data.data) {
+        const mapped = data.data.map((t: any) => ({
+          id: t.videoId,
+          title: t.title,
           user: "Spotify Popular",
-          artwork_url: t.thumbnail,
-          thumbnail: t.thumbnail,
-          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
-          duration: 0,
-          permalink: t.id
+          artwork_url: t.image || t.thumbnail,
+          thumbnail: t.image || t.thumbnail,
+          permalink_url: t.url,
+          duration: t.seconds || 0,
+          permalink: t.videoId
         }));
         setTrendingResults(mapped);
       }
@@ -334,33 +327,26 @@ export default function App() {
 
   const searchByGenre = async (genre: string) => {
     setQuery(genre);
-    setSearchSource('spotify'); // Gunakan YouTube (sebagai Spotify) untuk genre
+    setSearchSource('spotify');
     
     setIsSearching(true);
     try {
       const musicQuery = `${genre} song official`;
-      const url = `https://yt-search-and-download-mp3.p.rapidapi.com/search?q=${encodeURIComponent(musicQuery)}&limit=20`;
-      const options = {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-          'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
-        }
-      };
+      const url = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(musicQuery)}`;
 
-      const res = await fetch(url, options);
+      const res = await fetch(url);
       const data = await res.json();
       
-      if (data && data.videos) {
-        const mapped = data.videos.map((t: any) => ({
-          id: t.id,
-          title: t.name,
+      if (data.status && data.data) {
+        const mapped = data.data.map((t: any) => ({
+          id: t.videoId,
+          title: t.title,
           user: "YouTube Music",
-          artwork_url: t.thumbnail,
-          thumbnail: t.thumbnail,
-          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
-          duration: 0,
-          permalink: t.id
+          artwork_url: t.image || t.thumbnail,
+          thumbnail: t.image || t.thumbnail,
+          permalink_url: t.url,
+          duration: t.seconds || 0,
+          permalink: t.videoId
         }));
         setResults(mapped);
       }
@@ -440,25 +426,35 @@ export default function App() {
       let metadata: any = null;
 
       if (isYouTube) {
-        // Use RapidAPI for YouTube Download
-        const downloadUrl = `https://yt-search-and-download-mp3.p.rapidapi.com/mp3?url=${encodeURIComponent(permalink_url)}`;
-        const options = {
-          method: 'GET',
-          headers: {
-            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-            'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+        // Ekstrak videoId dari permalink_url
+        const videoId = permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop();
+        
+        if (videoId) {
+          try {
+            const url = `https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`;
+            const options = {
+              method: 'GET',
+              headers: {
+                'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+                'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
+              }
+            };
+            
+            const res = await fetch(url, options);
+            const data = await res.json();
+            
+            if (data && data.status === 'ok' && data.link) {
+              metadata = {
+                title: data.title || track.title,
+                url: data.link,
+                user: "YouTube Music",
+                thumbnail: track.thumbnail || track.artwork_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                permalink_url: permalink_url
+              };
+            }
+          } catch (error) {
+            console.error("RapidAPI download error:", error);
           }
-        };
-        const res = await fetch(downloadUrl, options);
-        const data = await res.json();
-        if (data && data.download) {
-          metadata = {
-            title: data.title || track.title,
-            url: data.download,
-            user: "YouTube Music",
-            thumbnail: track.thumbnail || track.artwork_url || `https://i.ytimg.com/vi/${permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop()}/hqdefault.jpg`,
-            permalink_url: permalink_url
-          };
         }
       } else {
         // Use siputzx for SoundCloud/Spotify
@@ -691,32 +687,24 @@ export default function App() {
           setResults(filtered);
         } else setResults([]);
       } else {
-        // YouTube Search via RapidAPI (Labels as Spotify, works in APK)
-        // Tambahkan keyword "song" atau "official" agar hasil lebih relevan dengan musik
+        // YouTube Search via Siputzx API (Gratis & Stabil untuk APK)
         const musicQuery = `${query} song official`;
-        const url = `https://yt-search-and-download-mp3.p.rapidapi.com/search?q=${encodeURIComponent(musicQuery)}&limit=20`;
-        const options = {
-          method: 'GET',
-          headers: {
-            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-            'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
-          }
-        };
-
-        const res = await fetch(url, options);
-        if (!res.ok) throw new Error(`RapidAPI Error: ${res.status}`);
+        const url = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(musicQuery)}`;
+        
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Search API Error: ${res.status}`);
         const data = await res.json();
         
-        if (data && data.videos) {
-          const mapped = data.videos.map((t: any) => ({
-            id: t.id,
-            title: t.name,
+        if (data.status && data.data) {
+          const mapped = data.data.map((t: any) => ({
+            id: t.videoId,
+            title: t.title,
             user: "YouTube Music",
-            artwork_url: t.thumbnail,
-            thumbnail: t.thumbnail,
-            permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
-            duration: 0, // Duration is string like "5:22", need conversion if needed
-            permalink: t.id
+            artwork_url: t.image || t.thumbnail,
+            thumbnail: t.image || t.thumbnail,
+            permalink_url: t.url,
+            duration: t.seconds || 0,
+            permalink: t.videoId
           }));
           setResults(mapped);
         } else setResults([]);
@@ -775,27 +763,52 @@ export default function App() {
       let trackWithArtist: any = null;
 
       if (isYouTube) {
-        // Use RapidAPI for YouTube Download (Stable for APK)
-        const downloadUrl = `https://yt-search-and-download-mp3.p.rapidapi.com/mp3?url=${encodeURIComponent(permalink_url)}`;
-        const options = {
-          method: 'GET',
-          headers: {
-            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-            'x-rapidapi-host': 'yt-search-and-download-mp3.p.rapidapi.com'
+        // Ekstrak videoId dari permalink_url
+        const videoId = permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop();
+        
+        if (videoId) {
+          try {
+            const url = `https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`;
+            const options = {
+              method: 'GET',
+              headers: {
+                'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+                'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
+              }
+            };
+            
+            const res = await fetch(url, options);
+            const data = await res.json();
+            
+            if (data && data.status === 'ok' && data.link) {
+              trackWithArtist = {
+                title: data.title || "YouTube Track",
+                user: "YouTube Music",
+                url: data.link,
+                thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                permalink_url: permalink_url,
+                duration: data.duration || 0
+              };
+            }
+          } catch (e) {
+            console.error("RapidAPI youtube-mp36 error:", e);
           }
-        };
-
-        const res = await fetch(downloadUrl, options);
-        const data = await res.json();
-
-        if (data && data.download) {
-          trackWithArtist = {
-            title: data.title || "YouTube Track",
-            user: "YouTube Music",
-            url: data.download,
-            thumbnail: `https://i.ytimg.com/vi/${permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop()}/hqdefault.jpg`,
-            permalink_url: permalink_url
-          };
+        }
+        
+        // Fallback ke Siputzx jika RapidAPI gagal
+        if (!trackWithArtist) {
+          const downloadUrl = `https://api.siputzx.my.id/api/d/ytdl?url=${encodeURIComponent(permalink_url)}`;
+          const res = await fetch(downloadUrl);
+          const data = await res.json();
+          if (data.status && data.data && data.data.mp3) {
+            trackWithArtist = {
+              title: data.data.title || "YouTube Track",
+              user: "YouTube Music",
+              url: data.data.mp3,
+              thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+              permalink_url: permalink_url
+            };
+          }
         }
       } else {
         // Use siputzx for SoundCloud/Spotify
