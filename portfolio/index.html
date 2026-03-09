@@ -63,7 +63,7 @@
                     <a href="https://musicplayer-updt.vercel.app/" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/20">
                         <i data-lucide="layout" class="w-5 h-5"></i> Open Web App
                     </a>
-                    <a href="#" class="w-full sm:w-auto bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all download-apk">
+                    <a href="SoundStream.apk" download="SoundStream.apk" class="w-full sm:w-auto bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all">
                         <i data-lucide="smartphone" class="w-5 h-5"></i> Download APK
                     </a>
                 </div>
@@ -168,10 +168,10 @@
                 
                 <h2 class="text-3xl md:text-5xl font-bold mb-6 relative z-10">Siap mendengarkan musik?</h2>
                 <p class="text-zinc-400 text-lg mb-10 max-w-2xl mx-auto relative z-10">Coba SoundStream sekarang dan rasakan perbedaannya. Tanpa iklan, tanpa biaya, murni pengalaman musik.</p>
-                <div class="flex justify-center relative z-10">
-                    <button class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-12 py-5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-500/20 download-apk">
+                <div className="flex justify-center relative z-10">
+                    <a href="SoundStream.apk" download="SoundStream.apk" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-12 py-5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-500/20">
                         Unduh Sekarang (APK)
-                    </button>
+                    </a>
                 </div>
             </div>
         </section>
@@ -199,30 +199,6 @@
             }, { threshold: 0.1 });
 
             document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-            // APK Download Simulation
-            const downloadButtons = document.querySelectorAll('.download-apk');
-            downloadButtons.forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const originalContent = btn.innerHTML;
-                    btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5 h-5"></i> Preparing...';
-                    lucide.createIcons();
-                    
-                    setTimeout(() => {
-                        btn.innerHTML = originalContent;
-                        lucide.createIcons();
-                        
-                        // Actual Download
-                        const link = document.createElement('a');
-                        link.href = 'SoundStream.apk';
-                        link.download = 'SoundStream.apk';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }, 1500);
-                });
-            });
         });
     </script>
 </body>

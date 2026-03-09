@@ -44,31 +44,4 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.reveal').forEach(el => {
         observer.observe(el);
     });
-
-    // Handle APK Download clicks
-    const downloadButtons = document.querySelectorAll('.download-apk');
-    downloadButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const originalText = btn.innerHTML;
-            
-            // Show loading state
-            btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> Preparing...';
-            lucide.createIcons();
-            
-            setTimeout(() => {
-                // Restore button text
-                btn.innerHTML = originalText;
-                lucide.createIcons();
-                
-                // Trigger actual download
-                const link = document.createElement('a');
-                link.href = 'SoundStream.apk';
-                link.download = 'SoundStream.apk';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }, 1200);
-        });
-    });
 });

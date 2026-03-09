@@ -8,6 +8,8 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { Network } from '@capacitor/network';
+
 // Ganti dengan API Key ImgBB Anda
 const IMGBB_API_KEY = 'e18b5fb620e522fb9405cada79e56652'; // Contoh key, silakan ganti jika perlu
 
@@ -94,6 +96,7 @@ export default function App() {
   const [editPlaylistImage, setEditPlaylistImage] = useState('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
   const [trackToAdd, setTrackToAdd] = useState<SearchResult | null>(null);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [history, setHistory] = useState<TrackDetails[]>([]);
@@ -262,9 +265,14 @@ export default function App() {
     };
 
     // Handle incoming URL (when app is open)
-    const listener = CapApp.addListener('appUrlOpen', data => {
-      handleUrl(data.url);
-    });
+    const setupListener = async () => {
+      const listener = await CapApp.addListener('appUrlOpen', data => {
+        handleUrl(data.url);
+      });
+      return listener;
+    };
+
+    const listenerPromise = setupListener();
 
     checkInitialUrl();
 
@@ -292,7 +300,7 @@ export default function App() {
     loadDownloadedTracks();
 
     return () => {
-      listener.remove();
+      listenerPromise.then(l => l.remove());
     };
   }, []);
 
@@ -508,9 +516,14 @@ export default function App() {
   const fetchHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const res = await fetch('/api/history');
-      const data = await res.json();
-      if (Array.isArray(data)) setHistory(data);
+      if (Capacitor.isNativePlatform()) {
+        const savedHistory: any = await localforage.getItem('soundstream_history');
+        if (Array.isArray(savedHistory)) setHistory(savedHistory);
+      } else {
+        const res = await fetch('/api/history');
+        const data = await res.json();
+        if (Array.isArray(data)) setHistory(data);
+      }
     } catch (error) {
       console.error("Failed to fetch history:", error);
     } finally {
@@ -519,11 +532,46 @@ export default function App() {
   };
 
   const clearHistory = async () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Hapus Riwayat?",
+      message: "Semua daftar lagu yang baru saja diputar akan dihapus.",
+      onConfirm: async () => {
+        try {
+          if (Capacitor.isNativePlatform()) {
+            await localforage.removeItem('soundstream_history');
+          } else {
+            await fetch('/api/history', { method: 'DELETE' });
+          }
+          setHistory([]);
+        } catch (error) {
+          console.error("Failed to clear history:", error);
+        }
+      }
+    });
+  };
+
+  const saveToHistory = async (track: TrackDetails) => {
     try {
-      await fetch('/api/history', { method: 'DELETE' });
-      setHistory([]);
-    } catch (error) {
-      console.error("Failed to clear history:", error);
+      const newEntry = { ...track, played_at: new Date().toISOString() };
+      setHistory(prev => {
+        const filtered = prev.filter(t => t.permalink_url !== track.permalink_url);
+        const updated = [newEntry, ...filtered].slice(0, 50); // Simpan 50 terakhir
+        if (Capacitor.isNativePlatform()) {
+          localforage.setItem('soundstream_history', updated);
+        }
+        return updated;
+      });
+
+      if (!Capacitor.isNativePlatform()) {
+        fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(track)
+        }).catch(console.error);
+      }
+    } catch (e) {
+      console.error("Failed to save history", e);
     }
   };
 
@@ -651,10 +699,16 @@ export default function App() {
   };
 
   const deletePlaylist = (playlistId: string) => {
-    if (!confirm("Hapus playlist ini?")) return;
-    const updated = playlists.filter(p => p.id !== playlistId);
-    setPlaylists(updated);
-    if (activePlaylist?.id === playlistId) setActivePlaylist(null);
+    setConfirmModal({
+      isOpen: true,
+      title: "Hapus Playlist?",
+      message: "Playlist ini akan dihapus permanen dan tidak bisa dikembalikan.",
+      onConfirm: () => {
+        const updated = playlists.filter(p => p.id !== playlistId);
+        setPlaylists(updated);
+        if (activePlaylist?.id === playlistId) setActivePlaylist(null);
+      }
+    });
   };
 
   const openAddModal = (e: React.MouseEvent, track: SearchResult | null) => {
@@ -670,6 +724,13 @@ export default function App() {
     setEditPlaylistImage(playlist.artwork_url || '');
     setIsEditPlaylistModalOpen(true);
   };
+
+  useEffect(() => {
+    // Muat ulang pencarian otomatis saat sumber diganti
+    if (query.trim()) {
+      handleSearch();
+    }
+  }, [searchSource]);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -717,137 +778,162 @@ export default function App() {
     }
   };
 
-  const fetchLyrics = async (title: string) => {
+  useEffect(() => {
+    // Reset lirik saat ganti lagu agar tidak tertukar
+    setLyrics(null);
+    setIsLyricsOpen(false);
+  }, [currentTrack?.permalink_url]);
+
+  const fetchLyrics = async (title: string, artist?: string) => {
     setIsLoadingLyrics(true);
     setLyrics(null);
     try {
-      const cleanTitle = title.replace(/\(.*\)|\[.*\]/g, '').replace(/original|cover|remix/gi, '').trim();
-      const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`);
+      // Membersihkan judul lagu agar pencarian lebih akurat
+      const cleanTitle = title.replace(/\(.*\)|\[.*\]/g, '').replace(/original|cover|remix|official|lyric|video/gi, '').trim();
+      const searchQuery = artist ? `${cleanTitle} ${artist}` : cleanTitle;
+      
+      const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
+      
       if (data && data.length > 0) {
+        // Cari yang ada plainLyrics-nya
         const trackWithLyrics = data.find((t: any) => t.plainLyrics);
-        setLyrics(trackWithLyrics ? trackWithLyrics.plainLyrics : "No lyrics found for this track.");
-      } else setLyrics("No lyrics found for this track.");
+        if (trackWithLyrics) {
+          setLyrics(trackWithLyrics.plainLyrics);
+        } else {
+          setLyrics("Lirik tersedia tapi formatnya tidak didukung.");
+        }
+      } else {
+        setLyrics("Lirik tidak ditemukan untuk lagu ini.");
+      }
     } catch (error) {
       console.error("Failed to fetch lyrics:", error);
-      setLyrics("Failed to load lyrics.");
+      setLyrics("Gagal memuat lirik. Periksa koneksi internet.");
     } finally {
       setIsLoadingLyrics(false);
     }
   };
 
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    // 1. Fungsi untuk menangani perubahan status
+    const updateStatus = (status: { connected: boolean }) => {
+      setIsOnline(status.connected);
+      if (!status.connected) {
+        // Otomatis pindah ke tab Downloads saat offline
+        setActiveTab('library');
+        setLibraryTab('downloads');
+      }
+    };
+
+    // 2. Cek status awal secara native
+    Network.getStatus().then(updateStatus);
+
+    // 3. Pasang listener untuk memantau terus menerus
+    const handler = Network.addListener('networkStatusChange', updateStatus);
+
+    return () => {
+      handler.then(h => h.remove());
+    };
+  }, []);
+
   const playTrack = async (permalink_url: string) => {
+    if (!isOnline) {
+      const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
+      if (!offlineData) {
+        alert("Kamu sedang offline. Lagu ini belum diunduh.");
+        return;
+      }
+    }
+
     setIsLoadingTrack(true);
     try {
+      // 1. Cek apakah sudah ada di Offline (Permanen)
       const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
       if (offlineData && offlineData.blob) {
         const objectUrl = URL.createObjectURL(offlineData.blob);
-        const trackWithLocalUrl = { ...offlineData.metadata, url: objectUrl };
-        setCurrentTrack(trackWithLocalUrl);
+        setCurrentTrack({ ...offlineData.metadata, url: objectUrl });
         setIsPlaying(true);
-        fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...offlineData.metadata, permalink_url })
-        }).catch(console.error);
-        if (isLyricsOpen) fetchLyrics(offlineData.metadata.title);
-        else setLyrics(null);
         setIsLoadingTrack(false);
         return;
       }
 
-      // Check if it's a Spotify or YouTube URL
-      const isSpotify = permalink_url.includes('spotify.com');
+      // 2. Jika tidak ada, kita download ke Cache Sementara (Stabilizer)
       const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
-      
-      let trackWithArtist: any = null;
+      const isSpotify = permalink_url.includes('spotify.com');
+      let trackData: any = null;
 
       if (isYouTube) {
-        // Ekstrak videoId dari permalink_url
         const videoId = permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop();
-        
-        if (videoId) {
-          try {
-            const url = `https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`;
-            const options = {
-              method: 'GET',
-              headers: {
-                'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-                'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
-              }
-            };
-            
-            const res = await fetch(url, options);
-            const data = await res.json();
-            
-            if (data && data.status === 'ok' && data.link) {
-              trackWithArtist = {
-                title: data.title || "YouTube Track",
-                user: "YouTube Music",
-                url: data.link,
-                thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-                permalink_url: permalink_url,
-                duration: data.duration || 0
-              };
-            }
-          } catch (e) {
-            console.error("RapidAPI youtube-mp36 error:", e);
+        const res = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`, {
+          headers: {
+            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
+            'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
           }
-        }
-        
-        // Fallback ke Siputzx jika RapidAPI gagal
-        if (!trackWithArtist) {
-          const downloadUrl = `https://api.siputzx.my.id/api/d/ytdl?url=${encodeURIComponent(permalink_url)}`;
-          const res = await fetch(downloadUrl);
-          const data = await res.json();
-          if (data.status && data.data && data.data.mp3) {
-            trackWithArtist = {
-              title: data.data.title || "YouTube Track",
-              user: "YouTube Music",
-              url: data.data.mp3,
-              thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-              permalink_url: permalink_url
-            };
-          }
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          trackData = {
+            title: data.title,
+            url: data.link,
+            user: "YouTube Music",
+            thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            permalink_url
+          };
         }
       } else {
-        // Use siputzx for SoundCloud/Spotify
-        let apiEndpoint = `https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`;
-        if (isSpotify) {
-          apiEndpoint = `https://api.siputzx.my.id/api/d/spotify?url=${encodeURIComponent(permalink_url)}`;
-        }
-
-        const res = await fetch(apiEndpoint);
+        const api = isSpotify ? 'spotify' : 'soundcloud';
+        const res = await fetch(`https://api.siputzx.my.id/api/d/${api}?url=${encodeURIComponent(permalink_url)}`);
         const data = await res.json();
-        
-        if (data.status && data.data) {
-          const artist = data.data.user || (isSpotify ? data.data.artist : getArtistFromUrl(permalink_url));
-          trackWithArtist = { 
-            ...data.data, 
-            user: artist || "Unknown Artist",
-            thumbnail: data.data.thumbnail || data.data.artwork_url || data.data.image,
-            permalink_url: permalink_url
-          };
+        if (data.status) {
+          trackData = { ...data.data, permalink_url, thumbnail: data.data.thumbnail || data.data.image };
         }
       }
 
-      if (trackWithArtist) {
-        setCurrentTrack(trackWithArtist);
-        setIsPlaying(true);
-        fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(trackWithArtist)
-        }).catch(console.error);
+      if (trackData && trackData.url) {
+        // Download file ke Blob agar putar stabil (No Buffering)
+        const audioRes = await fetch(trackData.url);
+        const blob = await audioRes.blob();
+        const objectUrl = URL.createObjectURL(blob);
         
-        if (isLyricsOpen) fetchLyrics(trackWithArtist.title);
-        else setLyrics(null);
+        // Simpan ke cache sementara (akan dihapus nanti)
+        await localforage.setItem('temp_playing_blob', blob);
+        
+        const finalTrack = { ...trackData, url: objectUrl };
+        setCurrentTrack(finalTrack);
+        setIsPlaying(true);
+        saveToHistory(finalTrack);
       }
     } catch (error) {
       console.error("Play error:", error);
+      alert("Gagal memuat lagu. Periksa koneksi internet kamu.");
     } finally {
       setIsLoadingTrack(false);
     }
+  };
+
+  const cleanupTempTrack = async () => {
+    try {
+      // Hapus blob dari memori browser
+      if (currentTrack?.url?.startsWith('blob:')) {
+        URL.revokeObjectURL(currentTrack.url);
+      }
+      // Hapus dari storage sementara
+      await localforage.removeItem('temp_playing_blob');
+    } catch (e) {
+      console.error("Cleanup failed", e);
+    }
+  };
+
+  const handleTrackEnd = () => {
+    cleanupTempTrack(); // Hapus file lama setelah selesai
+    if (repeatMode === 'one' && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+      return;
+    }
+    playNext();
   };
 
   const playNext = () => {
@@ -856,7 +942,10 @@ export default function App() {
       let nextIndex = queueIndex + 1;
       if (nextIndex >= activeQueue.length) {
         if (repeatMode === 'all') nextIndex = 0;
-        else return;
+        else {
+          setIsPlaying(false);
+          return;
+        }
       }
       setQueueIndex(nextIndex);
       playTrack(activeQueue[nextIndex].permalink_url);
@@ -874,19 +963,6 @@ export default function App() {
       setQueueIndex(prevIndex);
       playTrack(activeQueue[prevIndex].permalink_url);
     }
-  };
-
-  const handleTrackEnd = () => {
-    if (repeatMode === 'one' && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play();
-      return;
-    }
-    const activeQueue = isShuffle ? shuffledQueue : queue;
-    if (activeQueue.length > 0) {
-      if (queueIndex < activeQueue.length - 1 || repeatMode === 'all') playNext();
-      else setIsPlaying(false);
-    } else setIsPlaying(false);
   };
 
   const toggleRepeat = () => setRepeatMode(prev => prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off');
@@ -1009,15 +1085,23 @@ export default function App() {
   return (
     <div className="h-screen bg-zinc-950 text-zinc-50 flex flex-col font-sans overflow-hidden">
       {/* Header - Simplified */}
-      <header className="px-6 py-4 flex items-center justify-between sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md">
-        <div className="flex items-center gap-2 text-emerald-500 font-bold text-xl">
-          <Music className="w-7 h-7" />
-          <span className="tracking-tight">SoundStream</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="p-2 bg-zinc-900 rounded-full text-zinc-400" onClick={() => {setActiveTab('library'); setLibraryTab('history');}}>
-            <History className="w-5 h-5" />
-          </button>
+      <header className="px-6 py-4 flex flex-col sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-500 font-bold text-xl">
+            <Music className="w-7 h-7" />
+            <span className="tracking-tight">SoundStream</span>
+          </div>
+          <div className="flex items-center gap-4">
+            {!isOnline && (
+              <div className="px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold text-red-500 uppercase tracking-tighter">Mode Offline</span>
+              </div>
+            )}
+            <button className="p-2 bg-zinc-900 rounded-full text-zinc-400" onClick={() => {setActiveTab('library'); setLibraryTab('history');}}>
+              <History className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1107,6 +1191,7 @@ export default function App() {
                   playTrack={playTrack} downloadedTracks={downloadedTracks} removeDownload={removeDownload}
                   downloadTrack={downloadTrack} downloadingTracks={downloadingTracks} removeFromPlaylist={removeFromPlaylist}
                   openAddModal={openAddModal} formatTime={formatTime} getArtist={getArtistFromUrl}
+                  setConfirmModal={setConfirmModal}
                 />
               </section>
             </motion.div>
@@ -1161,6 +1246,7 @@ export default function App() {
                   playTrack={playTrack} downloadedTracks={downloadedTracks} removeDownload={removeDownload}
                   downloadTrack={downloadTrack} downloadingTracks={downloadingTracks} removeFromPlaylist={removeFromPlaylist}
                   openAddModal={openAddModal} formatTime={formatTime} getArtist={getArtistFromUrl}
+                  setConfirmModal={setConfirmModal}
                 />
               ) : (
                 <div className="grid grid-cols-2 gap-4 pt-4">
@@ -1254,6 +1340,7 @@ export default function App() {
                             playTrack={playTrack} downloadedTracks={downloadedTracks} removeDownload={removeDownload}
                             downloadTrack={downloadTrack} downloadingTracks={downloadingTracks} removeFromPlaylist={removeFromPlaylist}
                             openAddModal={openAddModal} formatTime={formatTime} getArtist={getArtistFromUrl}
+                            setConfirmModal={setConfirmModal}
                           />
                         </div>
                       </div>
@@ -1313,6 +1400,7 @@ export default function App() {
                         playTrack={playTrack} downloadedTracks={downloadedTracks} removeDownload={removeDownload}
                         downloadTrack={downloadTrack} downloadingTracks={downloadingTracks} removeFromPlaylist={removeFromPlaylist}
                         openAddModal={openAddModal} formatTime={formatTime} getArtist={(url:any) => "Downloaded Track"}
+                        setConfirmModal={setConfirmModal}
                       />
                     )}
                   </div>
@@ -1336,6 +1424,7 @@ export default function App() {
                           playTrack={playTrack} downloadedTracks={downloadedTracks} removeDownload={removeDownload}
                           downloadTrack={downloadTrack} downloadingTracks={downloadingTracks} removeFromPlaylist={removeFromPlaylist}
                           openAddModal={openAddModal} formatTime={formatTime} getArtist={(url:any) => "History"}
+                          setConfirmModal={setConfirmModal}
                         />
                       </div>
                     )}
@@ -1538,9 +1627,26 @@ export default function App() {
 
       {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-900 px-6 py-3 flex justify-between items-center z-50">
-        <NavButton active={activeTab === 'home'} icon={<Music className="w-6 h-6" />} label="Home" onClick={() => setActiveTab('home')} />
-        <NavButton active={activeTab === 'search'} icon={<Search className="w-6 h-6" />} label="Search" onClick={() => setActiveTab('search')} />
-        <NavButton active={activeTab === 'library'} icon={<ListMusic className="w-6 h-6" />} label="Library" onClick={() => setActiveTab('library')} />
+        <NavButton 
+          active={activeTab === 'home'} 
+          disabled={!isOnline}
+          icon={<Music className="w-6 h-6" />} 
+          label="Home" 
+          onClick={() => setActiveTab('home')} 
+        />
+        <NavButton 
+          active={activeTab === 'search'} 
+          disabled={!isOnline}
+          icon={<Search className="w-6 h-6" />} 
+          label="Search" 
+          onClick={() => setActiveTab('search')} 
+        />
+        <NavButton 
+          active={activeTab === 'library'} 
+          icon={<ListMusic className="w-6 h-6" />} 
+          label="Library" 
+          onClick={() => setActiveTab('library')} 
+        />
       </nav>
 
       {/* Loading Overlay for Playback */}
@@ -1550,17 +1656,35 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center gap-6"
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center p-8 gap-8"
           >
             <div className="relative">
-              <div className="w-24 h-24 border-4 border-emerald-500/20 rounded-full" />
-              <div className="absolute inset-0 w-24 h-24 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              <Music className="absolute inset-0 m-auto w-10 h-10 text-emerald-500 animate-pulse" />
+              <div className="w-32 h-32 border-4 border-emerald-500/10 rounded-full" />
+              <div className="absolute inset-0 w-32 h-32 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <Music className="absolute inset-0 m-auto w-12 h-12 text-emerald-500 animate-pulse" />
             </div>
-            <div className="text-center space-y-2">
-              <h3 className="text-xl font-bold text-white">Menyiapkan Musik...</h3>
-              <p className="text-zinc-400 text-sm animate-pulse">Sedang mengambil kualitas audio terbaik</p>
+            
+            <div className="text-center space-y-4 max-w-xs">
+              <h3 className="text-2xl font-bold text-white">Menyiapkan Musik...</h3>
+              <div className="space-y-2">
+                <p className="text-emerald-400 text-sm font-medium animate-pulse">Sedang mengunduh file audio ke memori sementara...</p>
+                <p className="text-zinc-500 text-xs leading-relaxed">
+                  Lagu dengan durasi lama (10+ menit) mungkin membutuhkan waktu pemrosesan lebih. Mohon tunggu sebentar.
+                </p>
+              </div>
             </div>
+
+            <button 
+              onClick={() => {
+                setIsLoadingTrack(false);
+                // Kita tidak bisa membatalkan fetch yang sudah jalan dengan mudah tanpa AbortController,
+                // tapi kita bisa menyembunyikan UI-nya agar user bisa memilih lagu lain.
+              }}
+              className="mt-4 px-8 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full font-bold transition-all active:scale-95 flex items-center gap-2"
+            >
+              <X className="w-5 h-5" />
+              Pilih Lagu Lain
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1745,26 +1869,67 @@ export default function App() {
           </motion.div>
         </div>
       )}
+      {/* Custom Confirm Modal */}
+      <AnimatePresence>
+        {confirmModal?.isOpen && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl border border-zinc-800 text-center space-y-6"
+            >
+              <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto text-red-500">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold">{confirmModal.title}</h3>
+                <p className="text-zinc-400">{confirmModal.message}</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 py-4 bg-zinc-800 text-white rounded-2xl font-bold active:scale-95 transition-transform"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={() => {
+                    confirmModal.onConfirm();
+                    setConfirmModal(null);
+                  }}
+                  className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold active:scale-95 transition-transform shadow-lg shadow-red-500/20"
+                >
+                  Ya, Hapus
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function NavButton({ active, icon, label, onClick }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void }) {
+function NavButton({ active, icon, label, onClick, disabled }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void, disabled?: boolean }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-emerald-500' : 'text-zinc-500'}`}>
-      <motion.div animate={{ scale: active ? 1.2 : 1 }}>{icon}</motion.div>
+    <button 
+      onClick={!disabled ? onClick : undefined} 
+      className={`flex flex-col items-center gap-1 transition-all ${disabled ? 'opacity-20 cursor-not-allowed' : active ? 'text-emerald-500' : 'text-zinc-500'}`}
+    >
+      <motion.div animate={{ scale: active && !disabled ? 1.2 : 1 }}>{icon}</motion.div>
       <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
     </button>
   );
 }
 
 const TrackList = ({ 
-  tracks, showRemove = false, playlistId = null, isShuffle, setQueue, setQueueIndex, playTrack, downloadedTracks, removeDownload, downloadTrack, downloadingTracks, removeFromPlaylist, openAddModal, formatTime, getArtist 
+  tracks, showRemove = false, playlistId = null, isShuffle, setQueue, setQueueIndex, playTrack, downloadedTracks, removeDownload, downloadTrack, downloadingTracks, removeFromPlaylist, openAddModal, formatTime, getArtist, setConfirmModal 
 }: any) => (
   <div className="space-y-2">
     {tracks.map((track: any, idx: number) => (
       <motion.div 
-        key={track.permalink_url || idx}
+        key={`${track.permalink_url}_${idx}`}
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: idx * 0.05 }}
@@ -1787,7 +1952,20 @@ const TrackList = ({
         </div>
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           {downloadedTracks.some((t: any) => t.permalink_url === track.permalink_url) ? (
-            <button onClick={(e) => removeDownload(e, track.permalink_url)} className="p-2 text-emerald-500"><CheckCircle2 className="w-5 h-5" /></button>
+            <button 
+              onClick={(e) => {
+                setConfirmModal({
+                  isOpen: true,
+                  title: "Hapus Offline?",
+                  message: "Lagu ini akan dihapus dari penyimpanan HP kamu.",
+                  onConfirm: () => removeDownload(e, track.permalink_url)
+                });
+              }} 
+              className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
+              title="Hapus Offline"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
           ) : (
             <button onClick={(e) => downloadTrack(e, track)} className="p-2 text-zinc-700 hover:text-emerald-500 transition-colors">
               {downloadingTracks.has(track.permalink_url) ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
@@ -1795,7 +1973,19 @@ const TrackList = ({
           )}
           <button onClick={(e) => { e.stopPropagation(); shareTrack(track); }} className="p-2 text-zinc-700 hover:text-emerald-500 transition-colors"><Share2 className="w-5 h-5" /></button>
           {showRemove ? (
-            <button onClick={() => removeFromPlaylist(playlistId, track.permalink_url)} className="p-2 text-zinc-700 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
+            <button 
+              onClick={() => {
+                setConfirmModal({
+                  isOpen: true,
+                  title: "Hapus dari Playlist?",
+                  message: "Lagu ini akan dikeluarkan dari playlist.",
+                  onConfirm: () => removeFromPlaylist(playlistId, track.permalink_url)
+                });
+              }} 
+              className="p-2 text-zinc-700 hover:text-red-500"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
           ) : (
             <button onClick={(e) => openAddModal(e, track)} className="p-2 text-zinc-700 hover:text-emerald-500"><Plus className="w-5 h-5" /></button>
           )}
