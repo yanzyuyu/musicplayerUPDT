@@ -486,6 +486,26 @@ export default function App() {
     } catch (e) {} finally { setIsUploadingImage(false); }
   };
 
+  const toggleShuffle = () => {
+    setIsShuffle(!isShuffle);
+    if (!isShuffle) {
+      setShuffledQueue([...queue].sort(() => Math.random() - 0.5));
+    }
+  };
+
+  const toggleRepeat = () => {
+    if (repeatMode === 'off') setRepeatMode('all');
+    else if (repeatMode === 'all') setRepeatMode('one');
+    else setRepeatMode('off');
+  };
+
+  const playPlaylist = (playlist: Playlist) => {
+    setQueue(playlist.tracks);
+    setShuffledQueue([...playlist.tracks].sort(() => Math.random() - 0.5));
+    setQueueIndex(0);
+    playTrack(playlist.tracks[0].permalink_url, playlist.tracks[0]);
+  };
+
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) audioRef.current.pause();
