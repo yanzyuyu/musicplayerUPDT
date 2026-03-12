@@ -11,32 +11,47 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Helper Artist
-const getArtistName = (track: any) => {
-  if (track.artists && Array.isArray(track.artists) && track.artists.length > 0) return track.artists.map((a: any) => a.name).join(", ");
-  if (track.artist) return track.artist;
-  return "Unknown Artist";
+// Helper untuk Spotify Token Resmi
+const getSpotifyAccessToken = async () => {
+  const clientId = process.env.SPOTIFY_CLIENT_ID || '00000000000000000000000000000000';
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '00000000000000000000000000000000';
+  
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
+    },
+    body: 'grant_type=client_credentials'
+  });
+  const data = await res.json();
+  return data.access_token;
 };
 
-// 1. Spotify Trending (Top 50 Indonesia)
+// 1. Spotify Trending (RESMI & STABIL)
 app.get("/api/spotify/trending", async (req, res) => {
   try {
-    const url = "https://open.spotify.com/playlist/37i9dQZF1DX48TT0tI5qvO"; 
-    const tracks = await getTracks(url);
+    const token = await getSpotifyAccessToken();
+    // Ambil Top 50 Indonesia secara resmi
+    const playlistId = '37i9dQZF1DX48TT0tI5qvO';
+    const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=25`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await response.json();
     
-    if (!tracks || !Array.isArray(tracks)) throw new Error("Invalid tracks data");
+    if (!data.items) throw new Error("Spotify API limit or error");
 
-    const mapped = tracks.slice(0, 25).map((track: any) => ({
-      title: track.name || track.title,
-      artist: getArtistName(track),
-      thumbnail: track.album?.images?.[0]?.url || track.coverArt?.sources?.[0]?.url || "",
+    const mapped = data.items.map((item: any) => ({
+      title: item.track.name,
+      artist: item.track.artists.map((a: any) => a.name).join(", "),
+      thumbnail: item.track.album.images[0]?.url || "",
       isSpotify: true
     }));
     
     res.json(mapped);
   } catch (error: any) {
-    console.error("Trending Error:", error.message);
-    res.status(500).json({ error: "Failed to fetch Spotify trending", details: error.message });
+    // FALLBACK: Jika API Resmi belum di-config (Env belum diisi), coba scraping lagi atau kirim data kosong
+    res.status(500).json({ error: "Spotify API Error", details: error.message });
   }
 });
 
@@ -60,18 +75,23 @@ app.get("/api/download/youtube", async (req, res) => {
       headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879', 'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com' }
     });
     const data = await response.json();
-    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
+    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` });
     else throw new Error("Failed");
   } catch (error: any) { res.status(500).json({ error: "Failed" }); }
 });
 
-// 4. Spotify Playlist Info
+// 4. Spotify Playlist Info (Untuk Impor Manual)
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
     const tracks = await getTracks(url);
     const details = await getDetails(url);
-    const mapped = tracks.map((t: any) => ({ title: t.name, artist: getArtistName(t), thumbnail: t.album?.images?.[0]?.url || "", duration: Math.floor(t.duration_ms / 1000) }));
+    const mapped = tracks.map((t: any) => ({ 
+      title: t.name, 
+      artist: t.artists?.map((a:any)=>a.name).join(", ") || t.artist || "Unknown", 
+      thumbnail: t.album?.images?.[0]?.url || "", 
+      duration: Math.floor(t.duration_ms / 1000) 
+    }));
     res.json({ name: details.preview?.title, artwork_url: details.preview?.image, tracks: mapped });
   } catch (error) { res.status(500).json({ error: "Failed" }); }
 });
