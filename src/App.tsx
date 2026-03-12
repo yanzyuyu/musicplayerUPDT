@@ -1019,12 +1019,9 @@ export default function App() {
       }
 
       if (trackInfo && trackInfo.url) {
-        const audioRes = await fetch(trackInfo.url);
-        const blob = await audioRes.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        await localforage.setItem('temp_playing_blob', blob);
-
-        const finalTrack = { ...trackInfo, url: objectUrl };
+        // PERBAIKAN: Langsung putar link (Direct Stream) agar tidak loading selamanya
+        // Kita tidak perlu download ke Blob dulu karena sering diblokir server (CORS)
+        const finalTrack = { ...trackInfo, url: trackInfo.url };
         setCurrentTrack(finalTrack);
         setIsPlaying(true);
         saveToHistory(finalTrack);
