@@ -111,7 +111,8 @@ export default function App() {
         setImportProgress({ current: i + 1, total: data.tracks.length });
         
         try {
-          const searchQuery = `${track.title} ${track.artist}`;
+          // Menambahkan '(spotify)' untuk meningkatkan akurasi hasil pencarian musik resmi
+          const searchQuery = `${track.title} ${track.artist} (spotify)`;
           const ytRes = await fetch(`${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(searchQuery)}`);
           const ytData = await ytRes.json();
           
