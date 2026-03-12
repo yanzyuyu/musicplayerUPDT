@@ -389,22 +389,22 @@ export default function App() {
   const fetchTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      // Mencari lagu yang sedang populer via Siputzx
-      const url = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent('Spotify Top Hits 2024')}`;
+      // Gunakan API internal Vercel
+      const url = `${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent('Spotify Top Hits 2024')}`;
       
       const res = await fetch(url);
       const data = await res.json();
       
-      if (data.status && data.data) {
-        const mapped = data.data.map((t: any) => ({
-          id: t.videoId,
+      if (data && data.items) {
+        const mapped = data.items.map((t: any) => ({
+          id: t.id,
           title: t.title,
-          user: "Spotify Popular",
-          artwork_url: t.image || t.thumbnail,
-          thumbnail: t.image || t.thumbnail,
-          permalink_url: t.url,
-          duration: t.seconds || 0,
-          permalink: t.videoId
+          user: t.channelTitle || "YouTube Music",
+          artwork_url: t.thumbnail?.thumbnails?.[0]?.url || "",
+          thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
+          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+          duration: 0,
+          permalink: t.id
         }));
         setTrendingResults(mapped);
       }
@@ -422,21 +422,21 @@ export default function App() {
     setIsSearching(true);
     try {
       const musicQuery = `${genre} song official`;
-      const url = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(musicQuery)}`;
+      const url = `${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(musicQuery)}`;
 
       const res = await fetch(url);
       const data = await res.json();
       
-      if (data.status && data.data) {
-        const mapped = data.data.map((t: any) => ({
-          id: t.videoId,
+      if (data && data.items) {
+        const mapped = data.items.map((t: any) => ({
+          id: t.id,
           title: t.title,
-          user: "YouTube Music",
-          artwork_url: t.image || t.thumbnail,
-          thumbnail: t.image || t.thumbnail,
-          permalink_url: t.url,
-          duration: t.seconds || 0,
-          permalink: t.videoId
+          user: t.channelTitle || "YouTube Music",
+          artwork_url: t.thumbnail?.thumbnails?.[0]?.url || "",
+          thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
+          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+          duration: 0,
+          permalink: t.id
         }));
         setResults(mapped);
       }
@@ -807,24 +807,23 @@ export default function App() {
           setResults(filtered);
         } else setResults([]);
       } else {
-        // YouTube Search via Siputzx API (Gratis & Stabil untuk APK)
-        const musicQuery = `${query} song official`;
-        const url = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(musicQuery)}`;
+        // YouTube Search via INTERNAL API VERCEL
+        const url = `${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(query)}`;
         
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Search API Error: ${res.status}`);
         const data = await res.json();
         
-        if (data.status && data.data) {
-          const mapped = data.data.map((t: any) => ({
-            id: t.videoId,
+        if (data && data.items) {
+          const mapped = data.items.map((t: any) => ({
+            id: t.id,
             title: t.title,
-            user: "YouTube Music",
-            artwork_url: t.image || t.thumbnail,
-            thumbnail: t.image || t.thumbnail,
-            permalink_url: t.url,
-            duration: t.seconds || 0,
-            permalink: t.videoId
+            user: t.channelTitle || "YouTube Music",
+            artwork_url: t.thumbnail?.thumbnails?.[0]?.url || "",
+            thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
+            permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+            duration: 0,
+            permalink: t.id
           }));
           setResults(mapped);
         } else setResults([]);
