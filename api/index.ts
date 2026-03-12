@@ -7,7 +7,7 @@ import path from "path";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
-const ytdl = require("@distube/ytdl-core"); // Versi yang lebih stabil & terupdate
+const ytdl = require("@distube/ytdl-core");
 const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 
 let db: any = null;
@@ -29,11 +29,10 @@ async function initDb() {
 const app = express();
 app.use(express.json());
 
-// 1. YouTube Search API (Bebas Kuota)
+// YouTube Search
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
-    if (!query) return res.status(400).json({ error: "Query is required" });
     const results = await yt.GetListByKeyword(query, false, 20);
     res.json(results);
   } catch (error) {
@@ -41,35 +40,51 @@ app.get("/api/search/youtube", async (req, res) => {
   }
 });
 
-// 2. YouTube Download/Stream API (Bebas RapidAPI)
+// SoundCloud Search (Proxy via Backend)
+app.get("/api/search/soundcloud", async (req, res) => {
+  try {
+    const query = req.query.query as string;
+    const response = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=${encodeURIComponent(query)}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: "SoundCloud search failed" });
+  }
+});
+
+// YouTube Download
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const url = req.query.url as string;
-    if (!url) return res.status(400).json({ error: "URL is required" });
-
     const info = await ytdl.getInfo(url);
-    const format = ytdl.chooseFormat(info.formats, { 
-      quality: 'highestaudio', 
-      filter: 'audioonly' 
-    });
-
-    if (!format || !format.url) throw new Error("Audio URL not found");
-
+    const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
     res.json({
       status: "ok",
       title: info.videoDetails.title,
-      link: format.url, // Link MP3 asli dari YouTube server
+      link: format.url,
       duration: parseInt(info.videoDetails.lengthSeconds),
       thumbnail: info.videoDetails.thumbnails[0].url,
       user: info.videoDetails.author.name
     });
   } catch (error) {
-    console.error("Download error:", error);
-    res.status(500).json({ error: "Failed to get download link", details: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: "YouTube download failed" });
   }
 });
 
-// 3. Spotify Playlist Import API
+// SoundCloud/Spotify Download (Proxy via Backend)
+app.get("/api/download/external", async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    const type = url.includes('spotify') ? 'spotify' : 'soundcloud';
+    const response = await fetch(`https://api.siputzx.my.id/api/d/${type}?url=${encodeURIComponent(url)}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: "External download failed" });
+  }
+});
+
+// Spotify Playlist Info
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
@@ -87,7 +102,7 @@ app.get("/api/spotify/playlist", async (req, res) => {
   }
 });
 
-// 4. History API (SQLite)
+// History API
 app.get("/api/history", async (req, res) => {
   const database = await initDb();
   if (!database) return res.json([]);

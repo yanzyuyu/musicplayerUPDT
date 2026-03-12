@@ -511,14 +511,13 @@ export default function App() {
     
     try {
       const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
+      const endpoint = isYouTube ? 'youtube' : 'external';
+      
+      const res = await fetch(`${API_BASE_URL}/api/download/${endpoint}?url=${encodeURIComponent(permalink_url)}`);
+      const data = await res.json();
       
       let metadata: any = null;
-
       if (isYouTube) {
-        // GUNAKAN API INTERNAL VERCEL
-        const res = await fetch(`${API_BASE_URL}/api/download/youtube?url=${encodeURIComponent(permalink_url)}`);
-        const data = await res.json();
-        
         if (data && data.status === 'ok' && data.link) {
           metadata = {
             title: data.title || track.title,
@@ -529,15 +528,12 @@ export default function App() {
           };
         }
       } else {
-        // Fallback untuk SoundCloud tetap pakai siputzx sementara atau bisa dipindah nanti
-        const metaRes = await fetch(`https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`);
-        const metaData = await metaRes.json();
-        if (metaData.status && metaData.data) {
+        if (data.status && data.data) {
           metadata = { 
-            ...metaData.data, 
-            user: metaData.data.user || getArtistFromUrl(permalink_url), 
+            ...data.data, 
+            user: data.data.user || getArtistFromUrl(permalink_url), 
             permalink_url: permalink_url,
-            thumbnail: metaData.data.thumbnail || metaData.data.artwork_url || metaData.data.image
+            thumbnail: data.data.thumbnail || data.data.artwork_url || data.data.image
           };
         }
       }
@@ -579,7 +575,7 @@ export default function App() {
         const savedHistory: any = await localforage.getItem('soundstream_history');
         if (Array.isArray(savedHistory)) setHistory(savedHistory);
       } else {
-        const res = await fetch('/api/history');
+        const res = await fetch(`${API_BASE_URL}/api/history`);
         const data = await res.json();
         if (Array.isArray(data)) setHistory(data);
       }
@@ -600,7 +596,7 @@ export default function App() {
           if (Capacitor.isNativePlatform()) {
             await localforage.removeItem('soundstream_history');
           } else {
-            await fetch('/api/history', { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/history`, { method: 'DELETE' });
           }
           setHistory([]);
         } catch (error) {
@@ -623,7 +619,7 @@ export default function App() {
       });
 
       if (!Capacitor.isNativePlatform()) {
-        fetch('/api/history', {
+        fetch(`${API_BASE_URL}/api/history`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(track)
@@ -907,7 +903,7 @@ export default function App() {
 
     setIsLoadingTrack(true);
     try {
-      // 1. Cek apakah sudah ada di Offline (Permanen)
+      // 1. Cek Offline
       const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
       if (offlineData && offlineData.blob) {
         const objectUrl = URL.createObjectURL(offlineData.blob);
@@ -917,45 +913,34 @@ export default function App() {
         return;
       }
 
-      // 2. Jika tidak ada, kita download ke Cache Sementara (Stabilizer)
+      // 2. Gunakan API Vercel Internal
       const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
-      const isSpotify = permalink_url.includes('spotify.com');
+      const endpoint = isYouTube ? 'youtube' : 'external';
+      
+      const res = await fetch(`${API_BASE_URL}/api/download/${endpoint}?url=${encodeURIComponent(permalink_url)}`);
+      const data = await res.json();
+      
       let trackData: any = null;
-
       if (isYouTube) {
-        const videoId = permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop();
-        const res = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`, {
-          headers: {
-            'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-            'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
-          }
-        });
-        const data = await res.json();
-        if (data.status === 'ok') {
+        if (data && data.status === 'ok') {
           trackData = {
             title: data.title,
             url: data.link,
-            user: "YouTube Music",
-            thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            user: data.user || "YouTube Music",
+            thumbnail: data.thumbnail,
             permalink_url
           };
         }
       } else {
-        const api = isSpotify ? 'spotify' : 'soundcloud';
-        const res = await fetch(`https://api.siputzx.my.id/api/d/${api}?url=${encodeURIComponent(permalink_url)}`);
-        const data = await res.json();
-        if (data.status) {
+        if (data.status && data.data) {
           trackData = { ...data.data, permalink_url, thumbnail: data.data.thumbnail || data.data.image };
         }
       }
 
       if (trackData && trackData.url) {
-        // Download file ke Blob agar putar stabil (No Buffering)
         const audioRes = await fetch(trackData.url);
         const blob = await audioRes.blob();
         const objectUrl = URL.createObjectURL(blob);
-        
-        // Simpan ke cache sementara (akan dihapus nanti)
         await localforage.setItem('temp_playing_blob', blob);
         
         const finalTrack = { ...trackData, url: objectUrl };
