@@ -633,17 +633,21 @@ export default function App() {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
-        
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 1.5; // Boost volume 1.5x (150%)
+
         const bassFilter = ctx.createBiquadFilter();
         bassFilter.type = 'lowshelf';
         bassFilter.frequency.value = 200;
         bassFilter.gain.value = isBassBoost ? 15 : 0;
-        
+
         const source = ctx.createMediaElementSource(audioRef.current);
         source.connect(bassFilter);
-        bassFilter.connect(analyser);
+        bassFilter.connect(gainNode);
+        gainNode.connect(analyser);
         analyser.connect(ctx.destination);
-        
+
         audioCtxRef.current = ctx;
         analyserRef.current = analyser;
         sourceRef.current = source;
@@ -654,7 +658,6 @@ export default function App() {
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
   };
-
   useEffect(() => {
     if (bassFilterRef.current && audioCtxRef.current) {
       bassFilterRef.current.gain.setTargetAtTime(isBassBoost ? 15 : 0, audioCtxRef.current.currentTime, 0.1);
