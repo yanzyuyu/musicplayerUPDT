@@ -27,7 +27,7 @@ async function initDb() {
 const app = express();
 app.use(express.json());
 
-// 1. YouTube Search
+// 1. YouTube Search (NPM youtube-search-api - Aman di Vercel)
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -38,30 +38,41 @@ app.get("/api/search/youtube", async (req, res) => {
   }
 });
 
-// 2. YouTube Download (Proxy)
+// 2. YouTube Download (Menggunakan Cobalt API sebagai Engine Backend)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
 
-    const response = await fetch(`https://api.siputzx.my.id/api/d/youtube?url=${encodeURIComponent(videoUrl)}`);
+    // Gunakan Cobalt API (Reliable & Anti-Bot)
+    const response = await fetch('https://api.cobalt.tools/api/json', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: videoUrl,
+        downloadMode: 'audio',
+        audioFormat: 'mp3',
+        audioBitrate: '128'
+      })
+    });
+
     const data = await response.json();
 
-    // Siputzx kadang mengembalikan data di data.data atau langsung di data
-    const result = data.data || data;
-
-    if (result && (result.url || result.link)) {
+    if (data.status === 'stream' || data.status === 'picker' || data.status === 'redirect') {
       res.json({
         status: "ok",
-        title: result.title || "Unknown Title",
-        link: result.url || result.link,
-        duration: result.duration || 0,
-        thumbnail: result.thumbnail || result.image || "",
-        user: result.user || "YouTube Music"
+        title: data.text || "YouTube Audio",
+        link: data.url,
+        duration: 0,
+        thumbnail: "",
+        user: "YouTube Music"
       });
     } else {
-      console.error("Siputzx Response:", JSON.stringify(data));
-      throw new Error("Invalid response structure from proxy");
+      console.error("Cobalt Error:", data);
+      throw new Error(data.text || "Failed to get download link from engine");
     }
   } catch (error: any) {
     console.error("Internal Download Error:", error.message);
@@ -74,6 +85,7 @@ app.get("/api/download/external", async (req, res) => {
   try {
     const url = req.query.url as string;
     const type = url.includes('spotify') ? 'spotify' : 'soundcloud';
+    // Gunakan endpoint yang benar (biasanya tanpa /api/d/ jika di root atau sesuaikan)
     const response = await fetch(`https://api.siputzx.my.id/api/d/${type}?url=${encodeURIComponent(url)}`);
     const data = await response.json();
     res.json(data);
@@ -82,7 +94,7 @@ app.get("/api/download/external", async (req, res) => {
   }
 });
 
-// 4. SoundCloud Search (Proxy)
+// 4. SoundCloud Search
 app.get("/api/search/soundcloud", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -94,7 +106,7 @@ app.get("/api/search/soundcloud", async (req, res) => {
   }
 });
 
-// 5. Spotify Playlist Info
+// 5. Spotify Playlist Info (NPM spotify-url-info)
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
@@ -112,7 +124,7 @@ app.get("/api/spotify/playlist", async (req, res) => {
   }
 });
 
-// 6. History API ( SQLite)
+// 6. History API (SQLite)
 app.get("/api/history", async (req, res) => {
   const database = await initDb();
   if (!database) return res.json([]);
@@ -133,17 +145,6 @@ app.post("/api/history", async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "Save history failed" });
-  }
-});
-
-app.delete("/api/history", async (req, res) => {
-  const database = await initDb();
-  if (!database) return res.json({ success: false });
-  try {
-    database.prepare('DELETE FROM history').run();
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: "Clear history failed" });
   }
 });
 
