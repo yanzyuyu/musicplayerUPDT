@@ -2,11 +2,11 @@ import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
-import spotifyUrlInfoFactory from "spotify-url-info";
+import { createRequire } from "module";
 
-// Inisialisasi spotify-url-info dengan fetch
-const spotify = (spotifyUrlInfoFactory as any).default || spotifyUrlInfoFactory;
-const { getDetails, getTracks } = spotify(fetch);
+const require = createRequire(import.meta.url);
+const spotifyUrlInfo = require("spotify-url-info");
+const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 
 let db: any = null;
 const isVercel = process.env.VERCEL === '1';
@@ -14,7 +14,7 @@ const isVercel = process.env.VERCEL === '1';
 async function initDb() {
   if (db) return db;
   try {
-    const Database = (await import("better-sqlite3")).default;
+    const Database = require("better-sqlite3");
     const dbPath = isVercel ? ':memory:' : 'history.db';
     db = new Database(dbPath);
     db.exec(`CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT NOT NULL, permalink_url TEXT, thumbnail TEXT, duration INTEGER, user TEXT, description TEXT, played_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
