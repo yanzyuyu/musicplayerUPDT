@@ -907,6 +907,13 @@ export default function App() {
   }, []);
 
   const playTrack = async (permalink_url: string, trackData?: any) => {
+    // SEGERA hentikan lagu lama agar tidak 'bocor' saat loading
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = ""; 
+    }
+    setIsPlaying(false);
+
     if (!isOnline) {
       const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
       if (!offlineData) {
