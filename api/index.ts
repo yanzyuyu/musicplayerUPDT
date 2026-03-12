@@ -11,58 +11,41 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Helper untuk Spotify Token Resmi
-const getSpotifyAccessToken = async () => {
-  const clientId = process.env.SPOTIFY_CLIENT_ID || '00000000000000000000000000000000';
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '00000000000000000000000000000000';
-  
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
-    },
-    body: 'grant_type=client_credentials'
-  });
-  const data = await res.json();
-  return data.access_token;
-};
-
-// 1. Spotify Trending (RESMI & STABIL)
-app.get("/api/spotify/trending", async (req, res) => {
-  try {
-    const token = await getSpotifyAccessToken();
-    // Ambil Top 50 Indonesia secara resmi
-    const playlistId = '37i9dQZF1DX48TT0tI5qvO';
-    const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=25`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await response.json();
-    
-    if (!data.items) throw new Error("Spotify API limit or error");
-
-    const mapped = data.items.map((item: any) => ({
-      title: item.track.name,
-      artist: item.track.artists.map((a: any) => a.name).join(", "),
-      thumbnail: item.track.album.images[0]?.url || "",
-      isSpotify: true
-    }));
-    
-    res.json(mapped);
-  } catch (error: any) {
-    // FALLBACK: Jika API Resmi belum di-config (Env belum diisi), coba scraping lagi atau kirim data kosong
-    res.status(500).json({ error: "Spotify API Error", details: error.message });
-  }
-});
-
-// 2. YouTube Search
+// 1. YouTube Search (DIOPTIMASI UNTUK MUSIK SAJA)
 app.get("/api/search/youtube", async (req, res) => {
   try {
-    const query = req.query.query as string;
-    const results = await yt.GetListByKeyword(query, false, 20);
+    let query = req.query.query as string;
+    if (!query) return res.status(400).json({ error: "Query is required" });
+
+    // Tambahkan kata kunci 'official music' untuk memfilter vlog/parodi
+    const musicOnlyQuery = `${query} music official`;
+    const results = await yt.GetListByKeyword(musicOnlyQuery, false, 20);
+    
+    // Filter tambahan di tingkat data (opsional, tapi filter query sudah cukup kuat)
     res.json(results);
   } catch (error) {
     res.status(500).json({ error: "YouTube search failed" });
+  }
+});
+
+// 2. Spotify Trending via YouTube (TANPA API KEY)
+app.get("/api/spotify/trending", async (req, res) => {
+  try {
+    // Mencari daftar putar musik hits terbaru di YouTube
+    const results = await yt.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 20);
+    
+    const mapped = (results.items || []).map((t: any) => ({
+      title: t.title,
+      artist: t.channelTitle || "YouTube Music",
+      thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
+      permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
+      id: t.id,
+      isSpotify: false // Karena ini sudah langsung link YouTube
+    }));
+    
+    res.json(mapped);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch trending" });
   }
 });
 
@@ -75,12 +58,12 @@ app.get("/api/download/youtube", async (req, res) => {
       headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879', 'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com' }
     });
     const data = await response.json();
-    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` });
+    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
     else throw new Error("Failed");
   } catch (error: any) { res.status(500).json({ error: "Failed" }); }
 });
 
-// 4. Spotify Playlist Info (Untuk Impor Manual)
+// 4. Spotify Playlist Info
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;

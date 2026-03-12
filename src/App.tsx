@@ -390,16 +390,15 @@ export default function App() {
   const fetchTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      // 1. Ambil daftar lagu yang sedang hits di Spotify Indonesia (Metadata saja)
+      // Mengambil lagu hits Spotify yang sudah dicari otomatis di YouTube oleh backend
       const res = await fetch(`${API_BASE_URL}/api/spotify/trending`);
-      const spotifyTracks = await res.json();
-
-      if (Array.isArray(spotifyTracks)) {
-        const mapped = spotifyTracks.map((t: any) => ({
+      const trendingData = await res.json();
+      
+      if (Array.isArray(trendingData)) {
+        const mapped = trendingData.map((t: any) => ({
           ...t,
-          permalink_url: `spotify_jit_${t.title}_${t.artist}`,
           user: t.artist,
-          permalink: t.title
+          permalink: t.id || t.title
         }));
         setTrendingResults(mapped);
       }
