@@ -780,27 +780,42 @@ export default function App() {
     }
   }, [searchSource]);
 
-  const handleSearch = async (e?: React.FormEvent) => {
+  const [metadataSuggestions, setMetadataSuggestions] = useState<any[]>([]);
+  const [isSelectingArtist, setIsSelectingArtist] = useState(false);
+
+  const handleSearch = async (e?: React.FormEvent, forceQuery?: string) => {
     if (e) e.preventDefault();
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
+    const searchQuery = forceQuery || query;
+    if (!searchQuery.trim()) return;
+
     setIsSearching(true);
+    setMetadataSuggestions([]);
+    setIsSelectingArtist(false);
+
     try {
       if (searchSource === 'soundcloud') {
-        const res = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=${encodeURIComponent(query)}`);
+        const res = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=${encodeURIComponent(searchQuery)}`);
         const data = await res.json();
         if (data.status && data.data) {
-          const filtered = data.data.filter((t: any) => t.duration && t.duration > 0);
-          setResults(filtered);
-        } else setResults([]);
+          setResults(data.data.filter((t: any) => t.duration > 0));
+        }
       } else {
-        // YouTube Search via INTERNAL API VERCEL
-        const url = `${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(query)}`;
-        
+        // TAHAP 1: Cari Tahu Lagu Siapa Saja (Metadata)
+        if (!forceQuery) {
+          const metaRes = await fetch(`${API_BASE_URL}/api/search/metadata?query=${encodeURIComponent(searchQuery)}`);
+          const metaData = await metaRes.json();
+          
+          if (Array.isArray(metaData) && metaData.length > 1) {
+            setMetadataSuggestions(metaData);
+            setIsSelectingArtist(true);
+            setIsSearching(false);
+            return;
+          }
+        }
+
+        // TAHAP 2: Cari di YouTube (Jalan jika cuma ada 1 saran atau user sudah pilih)
+        const url = `${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(searchQuery)}`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`Search API Error: ${res.status}`);
         const data = await res.json();
         
         if (data && data.items) {
@@ -815,11 +830,10 @@ export default function App() {
             permalink: t.id
           }));
           setResults(mapped);
-        } else setResults([]);
+        }
       }
     } catch (error) {
       console.error("Search error:", error);
-      setResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -1307,6 +1321,38 @@ export default function App() {
                 <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
                   <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
                   <p>Searching the SoundStream...</p>
+                </div>
+              ) : isSelectingArtist ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-zinc-400">Versi mana yang kamu cari?</h3>
+                    <button onClick={() => setIsSelectingArtist(false)} className="text-sm text-emerald-500 font-bold">Lewati</button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {metadataSuggestions.map((item, idx) => (
+                      <motion.div 
+                        key={idx}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        onClick={() => {
+                          setQuery(`${item.title} ${item.artist}`);
+                          handleSearch(undefined, `${item.title} ${item.artist}`);
+                        }}
+                        className="flex items-center gap-4 p-4 bg-zinc-900/50 hover:bg-zinc-800 rounded-3xl cursor-pointer group transition-all border border-zinc-800/50 hover:border-emerald-500/30"
+                      >
+                        <img src={item.artwork} alt="" className="w-16 h-16 rounded-2xl object-cover shadow-lg" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-white truncate">{item.title}</h4>
+                          <p className="text-zinc-500 text-sm truncate">{item.artist}</p>
+                          <p className="text-[10px] text-emerald-500 uppercase font-bold tracking-widest mt-1 opacity-60">{item.album}</p>
+                        </div>
+                        <div className="w-10 h-10 bg-zinc-800 group-hover:bg-emerald-500 rounded-full flex items-center justify-center transition-colors">
+                          <ArrowLeft className="w-5 h-5 rotate-180 group-hover:text-zinc-950" />
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               ) : results.length > 0 ? (
                 <TrackList 
