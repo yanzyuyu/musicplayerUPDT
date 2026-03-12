@@ -2,9 +2,11 @@ import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
-import spotifyUrlInfo from "spotify-url-info";
+import spotifyUrlInfoFactory from "spotify-url-info";
 
-const { getDetails, getTracks } = spotifyUrlInfo(fetch);
+// Inisialisasi spotify-url-info dengan fetch
+const spotify = (spotifyUrlInfoFactory as any).default || spotifyUrlInfoFactory;
+const { getDetails, getTracks } = spotify(fetch);
 
 let db: any = null;
 const isVercel = process.env.VERCEL === '1';
@@ -40,9 +42,9 @@ app.get("/api/spotify/playlist", async (req, res) => {
     const url = req.query.url as string;
     const tracks = await getTracks(url);
     const playlistDetails = await getDetails(url);
-    const mappedTracks = tracks.map(track => ({
+    const mappedTracks = tracks.map((track: any) => ({
       title: track.name,
-      artist: track.artists?.map(a => a.name).join(", ") || "Unknown Artist",
+      artist: track.artists?.map((a: any) => a.name).join(", ") || "Unknown Artist",
       thumbnail: track.album?.images?.[0]?.url || "",
       duration: Math.floor(track.duration_ms / 1000)
     }));
