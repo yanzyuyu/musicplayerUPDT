@@ -73,6 +73,7 @@ export default function App() {
   const [volume, setVolume] = useState(1);
   
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+  const [isEQOpen, setIsEQOpen] = useState(false);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
