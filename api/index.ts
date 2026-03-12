@@ -24,16 +24,19 @@ app.get("/api/spotify/trending", async (req, res) => {
     const url = "https://open.spotify.com/playlist/37i9dQZF1DX48TT0tI5qvO"; 
     const tracks = await getTracks(url);
     
+    if (!tracks || !Array.isArray(tracks)) throw new Error("Invalid tracks data");
+
     const mapped = tracks.slice(0, 25).map((track: any) => ({
-      title: track.name,
+      title: track.name || track.title,
       artist: getArtistName(track),
-      thumbnail: track.album?.images?.[0]?.url || "",
-      isSpotify: true // Flag untuk JIT (Just-In-Time) searching
+      thumbnail: track.album?.images?.[0]?.url || track.coverArt?.sources?.[0]?.url || "",
+      isSpotify: true
     }));
     
     res.json(mapped);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch Spotify trending" });
+  } catch (error: any) {
+    console.error("Trending Error:", error.message);
+    res.status(500).json({ error: "Failed to fetch Spotify trending", details: error.message });
   }
 });
 
@@ -57,7 +60,7 @@ app.get("/api/download/youtube", async (req, res) => {
       headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879', 'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com' }
     });
     const data = await response.json();
-    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` });
+    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
     else throw new Error("Failed");
   } catch (error: any) { res.status(500).json({ error: "Failed" }); }
 });
