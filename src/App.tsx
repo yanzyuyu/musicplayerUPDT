@@ -1017,12 +1017,16 @@ export default function App() {
   };
 
   const handleTrackEnd = () => {
-    cleanupTempTrack(); // Hapus file lama setelah selesai
+    cleanupTempTrack(); 
+    
+    // Jika mode repeat 'one', putar ulang lagu yang sama
     if (repeatMode === 'one' && audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play();
       return;
     }
+    
+    // Jika tidak, putar lagu selanjutnya di antrean
     playNext();
   };
 
@@ -1030,15 +1034,22 @@ export default function App() {
     const activeQueue = isShuffle ? shuffledQueue : queue;
     if (activeQueue.length > 0) {
       let nextIndex = queueIndex + 1;
+      
+      // Jika sudah di akhir antrean
       if (nextIndex >= activeQueue.length) {
-        if (repeatMode === 'all') nextIndex = 0;
-        else {
-          setIsPlaying(false);
+        if (repeatMode === 'all') {
+          nextIndex = 0; // Putar balik dari awal antrean
+        } else {
+          setIsPlaying(false); // Selesai
           return;
         }
       }
+      
       setQueueIndex(nextIndex);
-      playTrack(activeQueue[nextIndex].permalink_url);
+      const nextTrack = activeQueue[nextIndex];
+      if (nextTrack) {
+        playTrack(nextTrack.permalink_url, nextTrack);
+      }
     }
   };
 
