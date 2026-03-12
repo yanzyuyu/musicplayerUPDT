@@ -1,5 +1,4 @@
 import express from "express";
-import path from "path";
 import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
@@ -7,7 +6,6 @@ import spotifyUrlInfo from "spotify-url-info";
 
 const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 
-// Inisialisasi Database secara aman untuk Vercel
 let db: any = null;
 const isVercel = process.env.VERCEL === '1';
 
@@ -17,23 +15,9 @@ async function initDb() {
     const Database = (await import("better-sqlite3")).default;
     const dbPath = isVercel ? ':memory:' : 'history.db';
     db = new Database(dbPath);
-    
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        permalink_url TEXT,
-        thumbnail TEXT,
-        duration INTEGER,
-        user TEXT,
-        description TEXT,
-        played_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    db.exec(`CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT NOT NULL, permalink_url TEXT, thumbnail TEXT, duration INTEGER, user TEXT, description TEXT, played_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     return db;
   } catch (e) {
-    console.error("Database initialization failed:", e);
     return null;
   }
 }
@@ -41,98 +25,45 @@ async function initDb() {
 const app = express();
 app.use(express.json());
 
-// API routes
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
-    if (!query) return res.status(400).json({ error: "Query is required" });
     const results = await yt.GetListByKeyword(query, false, 20);
     res.json(results);
   } catch (error) {
-    console.error("YouTube search error:", error);
-    res.status(500).json({ error: "Failed to fetch from YouTube" });
+    res.status(500).json({ error: "YouTube search failed" });
   }
 });
 
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
-    if (!url) return res.status(400).json({ error: "URL is required" });
-
     const tracks = await getTracks(url);
     const playlistDetails = await getDetails(url);
-
     const mappedTracks = tracks.map(track => ({
       title: track.name,
       artist: track.artists?.map(a => a.name).join(", ") || "Unknown Artist",
       thumbnail: track.album?.images?.[0]?.url || "",
       duration: Math.floor(track.duration_ms / 1000)
     }));
-
-    res.json({
-      name: playlistDetails.preview.title || "Spotify Playlist",
-      artwork_url: playlistDetails.preview.image || "",
-      tracks: mappedTracks
-    });
+    res.json({ name: playlistDetails.preview.title, artwork_url: playlistDetails.preview.image, tracks: mappedTracks });
   } catch (error) {
-    console.error("Spotify playlist error:", error);
-    res.status(500).json({ error: "Failed to fetch Spotify playlist. Make sure it is public." });
+    res.status(500).json({ error: "Spotify fetch failed" });
   }
 });
 
 app.get("/api/history", async (req, res) => {
-  try {
-    const database = await initDb();
-    if (!database) return res.json([]);
-    const history = database.prepare('SELECT * FROM history ORDER BY played_at DESC LIMIT 50').all();
-    res.json(history);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch history" });
-  }
+  const database = await initDb();
+  if (!database) return res.json([]);
+  res.json(database.prepare('SELECT * FROM history ORDER BY played_at DESC LIMIT 50').all());
 });
 
 app.post("/api/history", async (req, res) => {
-  try {
-    const database = await initDb();
-    if (!database) return res.json({ success: false });
-    const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
-    const stmt = database.prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    stmt.run(title, url, permalink_url, thumbnail, duration, user, description);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to save history" });
-  }
+  const database = await initDb();
+  if (!database) return res.json({ success: false });
+  const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
+  database.prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)').run(title, url, permalink_url, thumbnail, duration, user, description);
+  res.json({ success: true });
 });
 
-app.delete("/api/history", async (req, res) => {
-  try {
-    const database = await initDb();
-    if (!database) return res.json({ success: false });
-    database.prepare('DELETE FROM history').run();
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to clear history" });
-  }
-});
-
-// Start logic (hanya untuk lokal)
-if (!isVercel) {
-  const PORT = 3000;
-  // Dynamic import Vite agar tidak diload Vercel
-  import("vite").then(async (viteModule) => {
-    const vite = await viteModule.createServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  });
-} else {
-  // Sajikan statis di Vercel
-  app.use(express.static(path.join(process.cwd(), 'dist')));
-}
-
-// Export for Vercel
 export default app;
