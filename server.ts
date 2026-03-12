@@ -26,125 +26,127 @@ db.exec(`
   )
 `);
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(express.json());
 
-  app.use(express.json());
+// API routes
+app.get("/api/search/youtube", async (req, res) => {
+  try {
+    const query = req.query.query as string;
+    if (!query) return res.status(400).json({ error: "Query is required" });
+    const results = await yt.GetListByKeyword(query, false, 20);
+    res.json(results);
+  } catch (error) {
+    console.error("YouTube search error:", error);
+    res.status(500).json({ error: "Failed to fetch from YouTube" });
+  }
+});
 
-  // API routes
-  app.get("/api/search/youtube", async (req, res) => {
-    try {
-      const query = req.query.query as string;
-      if (!query) return res.status(400).json({ error: "Query is required" });
-      const results = await yt.GetListByKeyword(query, false, 20);
-      res.json(results);
-    } catch (error) {
-      console.error("YouTube search error:", error);
-      res.status(500).json({ error: "Failed to fetch from YouTube" });
+app.get("/api/spotify/playlist", async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+
+    const tracks = await getTracks(url);
+    const playlistDetails = await getDetails(url);
+
+    const mappedTracks = tracks.map(track => ({
+      title: track.name,
+      artist: track.artists?.map(a => a.name).join(", ") || "Unknown Artist",
+      thumbnail: track.album?.images?.[0]?.url || "",
+      duration: Math.floor(track.duration_ms / 1000)
+    }));
+
+    res.json({
+      name: playlistDetails.preview.title || "Spotify Playlist",
+      artwork_url: playlistDetails.preview.image || "",
+      tracks: mappedTracks
+    });
+  } catch (error) {
+    console.error("Spotify playlist error:", error);
+    res.status(500).json({ error: "Failed to fetch Spotify playlist. Make sure it is public." });
+  }
+});
+
+app.get("/api/spotify/token", async (req, res) => {
+  try {
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      return res.status(500).json({ error: "Missing Spotify credentials in .env" });
     }
-  });
 
-  app.get("/api/spotify/playlist", async (req, res) => {
-    try {
-      const url = req.query.url as string;
-      if (!url) return res.status(400).json({ error: "URL is required" });
+    const authRes = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
+      },
+      body: 'grant_type=client_credentials'
+    });
 
-      const tracks = await getTracks(url);
-      const playlistDetails = await getDetails(url);
+    const data = await authRes.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Spotify token error:", error);
+    res.status(500).json({ error: "Failed to fetch Spotify token" });
+  }
+});
 
-      const mappedTracks = tracks.map(track => ({
-        title: track.name,
-        artist: track.artists?.map(a => a.name).join(", ") || "Unknown Artist",
-        thumbnail: track.album?.images?.[0]?.url || "",
-        duration: Math.floor(track.duration_ms / 1000)
-      }));
+app.get("/api/history", (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT * FROM history ORDER BY played_at DESC LIMIT 50');
+    const history = stmt.all();
+    res.json(history);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch history" });
+  }
+});
 
-      res.json({
-        name: playlistDetails.preview.title || "Spotify Playlist",
-        artwork_url: playlistDetails.preview.image || "",
-        tracks: mappedTracks
-      });
-    } catch (error) {
-      console.error("Spotify playlist error:", error);
-      res.status(500).json({ error: "Failed to fetch Spotify playlist. Make sure it is public." });
-    }
-  });
+app.post("/api/history", (req, res) => {
+  try {
+    const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
+    const stmt = db.prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const info = stmt.run(title, url, permalink_url, thumbnail, duration, user, description);
+    res.json({ success: true, id: info.lastInsertRowid });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to save history" });
+  }
+});
 
-  app.get("/api/spotify/token", async (req, res) => {
-    try {
-      const clientId = process.env.SPOTIFY_CLIENT_ID;
-      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+app.delete("/api/history", (req, res) => {
+  try {
+    const stmt = db.prepare('DELETE FROM history');
+    stmt.run();
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to clear history" });
+  }
+});
 
-      if (!clientId || !clientSecret) {
-        return res.status(500).json({ error: "Missing Spotify credentials in .env" });
-      }
-
-      const authRes = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
-        },
-        body: 'grant_type=client_credentials'
-      });
-
-      const data = await authRes.json();
-      res.json(data);
-    } catch (error) {
-      console.error("Spotify token error:", error);
-      res.status(500).json({ error: "Failed to fetch Spotify token" });
-    }
-  });
-
-  app.get("/api/history", (req, res) => {
-    try {
-      const stmt = db.prepare('SELECT * FROM history ORDER BY played_at DESC LIMIT 50');
-      const history = stmt.all();
-      res.json(history);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to fetch history" });
-    }
-  });
-
-  app.post("/api/history", (req, res) => {
-    try {
-      const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
-      const stmt = db.prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      const info = stmt.run(title, url, permalink_url, thumbnail, duration, user, description);
-      res.json({ success: true, id: info.lastInsertRowid });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to save history" });
-    }
-  });
-
-  app.delete("/api/history", (req, res) => {
-    try {
-      const stmt = db.prepare('DELETE FROM history');
-      stmt.run();
-      res.json({ success: true });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to clear history" });
-    }
-  });
-
-  // Vite middleware for development (MUST BE AFTER API ROUTES)
-  if (process.env.NODE_ENV !== "production") {
+// Start logic
+async function start() {
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   } else {
     app.use(express.static('dist'));
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+start();
+
+// Export for Vercel
+export default app;
