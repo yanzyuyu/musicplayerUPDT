@@ -112,7 +112,11 @@ export default function App() {
         
         try {
           // Menambahkan '(spotify)' untuk meningkatkan akurasi hasil pencarian musik resmi
-          const searchQuery = `${track.title} ${track.artist} (spotify)`;
+          // Hanya tambahkan nama artis jika memang ada (tidak kosong)
+          const searchQuery = track.artist 
+            ? `${track.title} ${track.artist} (spotify)` 
+            : `${track.title} (spotify)`;
+            
           const ytRes = await fetch(`${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(searchQuery)}`);
           const ytData = await ytRes.json();
           
