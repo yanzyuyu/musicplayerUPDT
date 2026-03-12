@@ -627,6 +627,10 @@ export default function App() {
     }
   };
 
+  const [eqGains, setEqGains] = useState({ bass: 0, mid: 0, treble: 0 });
+  const midFilterRef = useRef<BiquadFilterNode | null>(null);
+  const trebleFilterRef = useRef<BiquadFilterNode | null>(null);
+
   const initAudioContext = () => {
     if (!audioCtxRef.current && audioRef.current) {
       try {
@@ -635,16 +639,28 @@ export default function App() {
         analyser.fftSize = 256;
 
         const gainNode = ctx.createGain();
-        gainNode.gain.value = 1.5; // Boost volume 1.5x (150%)
+        gainNode.gain.value = 2.5; // Super Boost 2.5x
 
         const bassFilter = ctx.createBiquadFilter();
         bassFilter.type = 'lowshelf';
         bassFilter.frequency.value = 200;
-        bassFilter.gain.value = isBassBoost ? 15 : 0;
+        bassFilter.gain.value = isBassBoost ? 15 : eqGains.bass;
+
+        const midFilter = ctx.createBiquadFilter();
+        midFilter.type = 'peaking';
+        midFilter.frequency.value = 1000;
+        midFilter.gain.value = eqGains.mid;
+
+        const trebleFilter = ctx.createBiquadFilter();
+        trebleFilter.type = 'highshelf';
+        trebleFilter.frequency.value = 3000;
+        trebleFilter.gain.value = eqGains.treble;
 
         const source = ctx.createMediaElementSource(audioRef.current);
         source.connect(bassFilter);
-        bassFilter.connect(gainNode);
+        bassFilter.connect(midFilter);
+        midFilter.connect(trebleFilter);
+        trebleFilter.connect(gainNode);
         gainNode.connect(analyser);
         analyser.connect(ctx.destination);
 
@@ -652,12 +668,22 @@ export default function App() {
         analyserRef.current = analyser;
         sourceRef.current = source;
         bassFilterRef.current = bassFilter;
+        midFilterRef.current = midFilter;
+        trebleFilterRef.current = trebleFilter;
       } catch (e) {
         console.error("Audio context init failed:", e);
       }
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
   };
+
+  useEffect(() => {
+    if (audioCtxRef.current) {
+      if (bassFilterRef.current) bassFilterRef.current.gain.setTargetAtTime(isBassBoost ? 15 : eqGains.bass, audioCtxRef.current.currentTime, 0.1);
+      if (midFilterRef.current) midFilterRef.current.gain.setTargetAtTime(eqGains.mid, audioCtxRef.current.currentTime, 0.1);
+      if (trebleFilterRef.current) trebleFilterRef.current.gain.setTargetAtTime(eqGains.treble, audioCtxRef.current.currentTime, 0.1);
+    }
+  }, [isBassBoost, eqGains]);
   useEffect(() => {
     if (bassFilterRef.current && audioCtxRef.current) {
       bassFilterRef.current.gain.setTargetAtTime(isBassBoost ? 15 : 0, audioCtxRef.current.currentTime, 0.1);
