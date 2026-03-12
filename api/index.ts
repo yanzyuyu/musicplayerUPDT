@@ -40,7 +40,7 @@ app.get("/api/search/youtube", async (req, res) => {
   }
 });
 
-// SoundCloud Search (Proxy via Backend)
+// SoundCloud Search
 app.get("/api/search/soundcloud", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -52,12 +52,30 @@ app.get("/api/search/soundcloud", async (req, res) => {
   }
 });
 
-// YouTube Download
+// YouTube Download (Dengan Error Logging yang lebih baik)
 app.get("/api/download/youtube", async (req, res) => {
   try {
-    const url = req.query.url as string;
-    const info = await ytdl.getInfo(url);
-    const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+    const videoUrl = req.query.url as string;
+    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
+
+    // Coba ambil info video
+    const info = await ytdl.getInfo(videoUrl, {
+      requestOptions: {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
+      }
+    });
+
+    const format = ytdl.chooseFormat(info.formats, { 
+      quality: 'highestaudio', 
+      filter: 'audioonly' 
+    });
+
+    if (!format || !format.url) {
+      throw new Error("No suitable audio format found");
+    }
+
     res.json({
       status: "ok",
       title: info.videoDetails.title,
@@ -66,12 +84,26 @@ app.get("/api/download/youtube", async (req, res) => {
       thumbnail: info.videoDetails.thumbnails[0].url,
       user: info.videoDetails.author.name
     });
-  } catch (error) {
-    res.status(500).json({ error: "YouTube download failed" });
+  } catch (error: any) {
+    console.error("YTDL Error:", error.message);
+    
+    // Jika Vercel diblokir YouTube, berikan pesan yang lebih jelas
+    if (error.message.includes('confirm you’re not a bot') || error.message.includes('403')) {
+      return res.status(500).json({ 
+        error: "YouTube memblokir request dari server (Bot Detection).", 
+        details: "Server Vercel sering terkena rate limit YouTube. Coba lagi nanti atau gunakan link lain.",
+        type: "BOT_DETECTION"
+      });
+    }
+
+    res.status(500).json({ 
+      error: "Gagal mengambil link download.", 
+      message: error.message 
+    });
   }
 });
 
-// SoundCloud/Spotify Download (Proxy via Backend)
+// SoundCloud/Spotify Download
 app.get("/api/download/external", async (req, res) => {
   try {
     const url = req.query.url as string;
