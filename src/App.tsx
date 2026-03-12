@@ -65,6 +65,8 @@ export default function App() {
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
+  const [syncedLyrics, setSyncedLyrics] = useState<{time: number, text: string}[] | null>(null);
+  const lyricsContainerRef = useRef<HTMLDivElement>(null);
   
   const [playlists, setPlaylists] = useState<Playlist[]>(() => {
     try {
@@ -177,7 +179,7 @@ export default function App() {
       CapApp.addListener('appUrlOpen', data => handleUrl(data.url));
     } else handleUrl(window.location.href);
 
-    Network.getStatus().then(s => setIsOnline(status.connected));
+    Network.getStatus().then(s => setIsOnline(s.connected));
     Network.addListener('networkStatusChange', s => setIsOnline(s.connected));
     
     fetchTrending();
@@ -312,22 +314,48 @@ export default function App() {
   };
 
   const fetchLyrics = async (title: string, artist?: string) => {
-    setIsLoadingLyrics(true); setLyrics(null);
+    setIsLoadingLyrics(true); setLyrics(null); setSyncedLyrics(null);
     try {
       const cleanTitle = title.replace(/\(official.*\)|\[official.*\]|\(lyrics.*\)|\[lyrics.*\]/gi, '').trim();
       const q = artist ? `${cleanTitle} ${artist}` : cleanTitle;
       const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      const track = data?.find((t: any) => t.plainLyrics);
-      if (track) setLyrics(track.plainLyrics);
-      else {
+      const track = data?.find((t: any) => t.syncedLyrics || t.plainLyrics);
+      if (track) {
+        if (track.syncedLyrics) {
+          const parsed = track.syncedLyrics.split('\n').map((line: string) => {
+            const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+            if (match) return { time: parseInt(match[1]) * 60 + parseFloat(match[2]), text: match[3].trim() };
+            return null;
+          }).filter((l: any) => l && l.text);
+          setSyncedLyrics(parsed);
+        }
+        setLyrics(track.plainLyrics);
+      } else {
         const resFallback = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`);
         const dataFallback = await resFallback.json();
-        const fb = dataFallback?.find((t: any) => t.plainLyrics);
-        setLyrics(fb ? fb.plainLyrics : "Lyrics not found.");
+        const fb = dataFallback?.find((t: any) => t.syncedLyrics || t.plainLyrics);
+        if (fb) {
+          if (fb.syncedLyrics) {
+            const parsed = fb.syncedLyrics.split('\n').map((line: string) => {
+              const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+              if (match) return { time: parseInt(match[1]) * 60 + parseFloat(match[2]), text: match[3].trim() };
+              return null;
+            }).filter((l: any) => l && l.text);
+            setSyncedLyrics(parsed);
+          }
+          setLyrics(fb.plainLyrics);
+        } else setLyrics("Lyrics not found.");
       }
     } catch (e) { setLyrics("Error loading lyrics."); } finally { setIsLoadingLyrics(false); }
   };
+
+  useEffect(() => {
+    if (isLyricsOpen && syncedLyrics && lyricsContainerRef.current) {
+      const active = document.getElementById('active-lyric-line');
+      if (active) active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [progress, isLyricsOpen, syncedLyrics]);
 
   const downloadTrack = async (e: React.MouseEvent, track: any) => {
     e.stopPropagation();
@@ -504,11 +532,6 @@ export default function App() {
       if (idx < 0) idx = repeatMode === 'all' ? q.length - 1 : 0;
       setQueueIndex(idx); playTrack(q[idx].permalink_url);
     }
-  };
-
-  const getArtistFromUrl = (url: string) => {
-    const match = url.match(/soundcloud\.com\/([^/]+)/);
-    return match ? match[1].replace(/-/g, ' ') : "Unknown Artist";
   };
 
   return (
@@ -697,7 +720,20 @@ export default function App() {
             <AnimatePresence>{isLyricsOpen && (
               <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="absolute inset-0 bg-zinc-950/95 z-50 p-8 flex flex-col">
                 <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-bold">Lyrics</h3><button onClick={() => setIsLyricsOpen(false)} className="p-2 bg-zinc-900 rounded-full"><X className="w-6" /></button></div>
-                <div className="flex-1 overflow-y-auto no-scrollbar pb-20">{isLoadingLyrics ? <div className="h-full flex items-center justify-center"><Loader2 className="w-10 animate-spin text-emerald-500" /></div> : <p className="text-3xl font-bold leading-tight whitespace-pre-wrap">{lyrics || "Lyrics not found."}</p>}</div>
+                <div className="flex-1 overflow-y-auto no-scrollbar pb-20 px-2" ref={lyricsContainerRef}>
+                  {isLoadingLyrics ? <div className="h-full flex items-center justify-center"><Loader2 className="w-10 animate-spin text-emerald-500" /></div> : syncedLyrics ? (
+                    <div className="space-y-6 py-[20vh]">
+                      {syncedLyrics.map((line, idx) => {
+                        const isActive = progress >= line.time && (!syncedLyrics[idx + 1] || progress < syncedLyrics[idx + 1].time);
+                        return (
+                          <motion.p key={idx} id={isActive ? 'active-lyric-line' : undefined} animate={{ opacity: isActive ? 1 : 0.3, scale: isActive ? 1.05 : 1, color: isActive ? '#10b981' : '#ffffff' }} className="text-3xl sm:text-4xl font-black leading-tight transition-all duration-300">
+                            {line.text}
+                          </motion.p>
+                        );
+                      })}
+                    </div>
+                  ) : <p className="text-3xl font-bold whitespace-pre-wrap py-8">{lyrics || "Lyrics not found."}</p>}
+                </div>
               </motion.div>
             )}</AnimatePresence>
           </motion.div>
@@ -710,7 +746,6 @@ export default function App() {
         <NavButton active={activeTab === 'library'} icon={<ListMusic />} label="Library" onClick={() => setActiveTab('library')} />
       </nav>
 
-      {/* Modals & Overlays */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-6" onClick={() => setIsAddModalOpen(false)}>
           <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-zinc-900 p-8 rounded-[2rem] w-full max-w-sm" onClick={e => e.stopPropagation()}>
