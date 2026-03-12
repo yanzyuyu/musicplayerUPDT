@@ -3,9 +3,11 @@ import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
 import { createRequire } from "module";
+import path from "path";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
+const ytdl = require("@distube/ytdl-core"); // Versi yang lebih stabil & terupdate
 const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 
 let db: any = null;
@@ -27,9 +29,11 @@ async function initDb() {
 const app = express();
 app.use(express.json());
 
+// 1. YouTube Search API (Bebas Kuota)
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
+    if (!query) return res.status(400).json({ error: "Query is required" });
     const results = await yt.GetListByKeyword(query, false, 20);
     res.json(results);
   } catch (error) {
@@ -37,6 +41,35 @@ app.get("/api/search/youtube", async (req, res) => {
   }
 });
 
+// 2. YouTube Download/Stream API (Bebas RapidAPI)
+app.get("/api/download/youtube", async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, { 
+      quality: 'highestaudio', 
+      filter: 'audioonly' 
+    });
+
+    if (!format || !format.url) throw new Error("Audio URL not found");
+
+    res.json({
+      status: "ok",
+      title: info.videoDetails.title,
+      link: format.url, // Link MP3 asli dari YouTube server
+      duration: parseInt(info.videoDetails.lengthSeconds),
+      thumbnail: info.videoDetails.thumbnails[0].url,
+      user: info.videoDetails.author.name
+    });
+  } catch (error) {
+    console.error("Download error:", error);
+    res.status(500).json({ error: "Failed to get download link", details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// 3. Spotify Playlist Import API
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
@@ -54,6 +87,7 @@ app.get("/api/spotify/playlist", async (req, res) => {
   }
 });
 
+// 4. History API (SQLite)
 app.get("/api/history", async (req, res) => {
   const database = await initDb();
   if (!database) return res.json([]);

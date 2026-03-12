@@ -511,54 +511,31 @@ export default function App() {
     
     try {
       const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
-      const isSpotify = permalink_url.includes('spotify.com');
       
       let metadata: any = null;
 
       if (isYouTube) {
-        // Ekstrak videoId dari permalink_url
-        const videoId = permalink_url.split('v=')[1]?.split('&')[0] || permalink_url.split('/').pop();
+        // GUNAKAN API INTERNAL VERCEL
+        const res = await fetch(`${API_BASE_URL}/api/download/youtube?url=${encodeURIComponent(permalink_url)}`);
+        const data = await res.json();
         
-        if (videoId) {
-          try {
-            const url = `https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`;
-            const options = {
-              method: 'GET',
-              headers: {
-                'x-rapidapi-key': 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-                'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
-              }
-            };
-            
-            const res = await fetch(url, options);
-            const data = await res.json();
-            
-            if (data && data.status === 'ok' && data.link) {
-              metadata = {
-                title: data.title || track.title,
-                url: data.link,
-                user: "YouTube Music",
-                thumbnail: track.thumbnail || track.artwork_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-                permalink_url: permalink_url
-              };
-            }
-          } catch (error) {
-            console.error("RapidAPI download error:", error);
-          }
+        if (data && data.status === 'ok' && data.link) {
+          metadata = {
+            title: data.title || track.title,
+            url: data.link,
+            user: data.user || "YouTube Music",
+            thumbnail: data.thumbnail || track.thumbnail || track.artwork_url,
+            permalink_url: permalink_url
+          };
         }
       } else {
-        // Use siputzx for SoundCloud/Spotify
-        const apiEndpoint = isSpotify 
-          ? `https://api.siputzx.my.id/api/d/spotify?url=${encodeURIComponent(permalink_url)}`
-          : `https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`;
-        
-        const metaRes = await fetch(apiEndpoint);
+        // Fallback untuk SoundCloud tetap pakai siputzx sementara atau bisa dipindah nanti
+        const metaRes = await fetch(`https://api.siputzx.my.id/api/d/soundcloud?url=${encodeURIComponent(permalink_url)}`);
         const metaData = await metaRes.json();
         if (metaData.status && metaData.data) {
-          const artist = metaData.data.user || (isSpotify ? metaData.data.artist : getArtistFromUrl(permalink_url));
           metadata = { 
             ...metaData.data, 
-            user: artist, 
+            user: metaData.data.user || getArtistFromUrl(permalink_url), 
             permalink_url: permalink_url,
             thumbnail: metaData.data.thumbnail || metaData.data.artwork_url || metaData.data.image
           };
