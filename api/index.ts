@@ -21,14 +21,14 @@ const getArtistName = (track: any) => {
 // 1. Spotify Trending (Top 50 Indonesia)
 app.get("/api/spotify/trending", async (req, res) => {
   try {
-    // Playlist ID untuk Top 50 Indonesia
     const url = "https://open.spotify.com/playlist/37i9dQZF1DX48TT0tI5qvO"; 
     const tracks = await getTracks(url);
     
-    const mapped = tracks.slice(0, 20).map((track: any) => ({
+    const mapped = tracks.slice(0, 25).map((track: any) => ({
       title: track.name,
       artist: getArtistName(track),
-      thumbnail: track.album?.images?.[0]?.url || ""
+      thumbnail: track.album?.images?.[0]?.url || "",
+      isSpotify: true // Flag untuk JIT (Just-In-Time) searching
     }));
     
     res.json(mapped);

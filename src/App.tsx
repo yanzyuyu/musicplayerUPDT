@@ -390,39 +390,18 @@ export default function App() {
   const fetchTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      // 1. Ambil daftar lagu yang sedang hits di Spotify Indonesia
+      // 1. Ambil daftar lagu yang sedang hits di Spotify Indonesia (Metadata saja)
       const res = await fetch(`${API_BASE_URL}/api/spotify/trending`);
       const spotifyTracks = await res.json();
-      
+
       if (Array.isArray(spotifyTracks)) {
-        const trendingWithYoutube: SearchResult[] = [];
-        
-        // 2. Ambil 6 lagu teratas saja untuk mempercepat loading Home
-        for (let i = 0; i < Math.min(spotifyTracks.length, 10); i++) {
-          const track = spotifyTracks[i];
-          try {
-            const searchQuery = `${track.title} ${track.artist} (spotify)`;
-            const ytRes = await fetch(`${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(searchQuery)}`);
-            const ytData = await ytRes.json();
-            
-            if (ytData && ytData.items && ytData.items.length > 0) {
-              const firstResult = ytData.items[0];
-              trendingWithYoutube.push({
-                id: firstResult.id,
-                title: track.title, // Pakai judul rapi dari spotify
-                user: track.artist, // Pakai nama artis rapi dari spotify
-                artwork_url: track.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
-                thumbnail: track.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
-                permalink_url: `https://www.youtube.com/watch?v=${firstResult.id}`,
-                duration: 0,
-                permalink: firstResult.id
-              });
-            }
-          } catch (e) {
-            console.error("Failed to find YT for trending track", e);
-          }
-        }
-        setTrendingResults(trendingWithYoutube);
+        const mapped = spotifyTracks.map((t: any) => ({
+          ...t,
+          permalink_url: `spotify_jit_${t.title}_${t.artist}`,
+          user: t.artist,
+          permalink: t.title
+        }));
+        setTrendingResults(mapped);
       }
     } catch (error) {
       console.error("Failed to fetch trending:", error);
@@ -430,7 +409,6 @@ export default function App() {
       setIsLoadingTrending(false);
     }
   };
-
   const searchByGenre = async (genre: string) => {
     setQuery(genre);
     setSearchSource('spotify');
@@ -908,7 +886,7 @@ export default function App() {
     };
   }, []);
 
-  const playTrack = async (permalink_url: string) => {
+  const playTrack = async (permalink_url: string, trackData?: any) => {
     if (!isOnline) {
       const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
       if (!offlineData) {
@@ -919,8 +897,42 @@ export default function App() {
 
     setIsLoadingTrack(true);
     try {
+      let finalPermalinkUrl = permalink_url;
+      let metadataToUse = trackData;
+
+      // JIT SEARCH: Jika ini lagu dari Spotify Trending yang belum punya link YT
+      if (permalink_url.startsWith('spotify_jit_') || (trackData && trackData.isSpotify)) {
+        // Cari data asli jika trackData tidak lengkap
+        let searchTitle = trackData?.title;
+        let searchArtist = trackData?.artist;
+
+        if (!searchTitle && permalink_url.startsWith('spotify_jit_')) {
+          const parts = permalink_url.replace('spotify_jit_', '').split('_');
+          searchTitle = parts[0];
+          searchArtist = parts[1];
+        }
+
+        const query = `${searchTitle} ${searchArtist} (spotify)`;
+        const ytRes = await fetch(`${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(query)}`);
+        const ytData = await ytRes.json();
+
+        if (ytData && ytData.items && ytData.items.length > 0) {
+          const firstResult = ytData.items[0];
+          finalPermalinkUrl = `https://www.youtube.com/watch?v=${firstResult.id}`;
+          metadataToUse = {
+            ...trackData,
+            title: searchTitle,
+            user: searchArtist,
+            thumbnail: trackData?.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
+            permalink_url: finalPermalinkUrl
+          };
+        } else {
+          throw new Error("Lagu tidak ditemukan di YouTube");
+        }
+      }
+
       // 1. Cek Offline
-      const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
+      const offlineData: any = await localforage.getItem(`track_${finalPermalinkUrl}`);
       if (offlineData && offlineData.blob) {
         const objectUrl = URL.createObjectURL(offlineData.blob);
         setCurrentTrack({ ...offlineData.metadata, url: objectUrl });
@@ -930,36 +942,36 @@ export default function App() {
       }
 
       // 2. Gunakan API Vercel Internal
-      const isYouTube = permalink_url.includes('youtube.com') || permalink_url.includes('youtu.be');
+      const isYouTube = finalPermalinkUrl.includes('youtube.com') || finalPermalinkUrl.includes('youtu.be');
       const endpoint = isYouTube ? 'youtube' : 'external';
-      
-      const res = await fetch(`${API_BASE_URL}/api/download/${endpoint}?url=${encodeURIComponent(permalink_url)}`);
+
+      const res = await fetch(`${API_BASE_URL}/api/download/${endpoint}?url=${encodeURIComponent(finalPermalinkUrl)}`);
       const data = await res.json();
-      
-      let trackData: any = null;
+
+      let trackInfo: any = null;
       if (isYouTube) {
         if (data && data.status === 'ok') {
-          trackData = {
-            title: data.title,
+          trackInfo = {
+            title: metadataToUse?.title || data.title,
             url: data.link,
-            user: data.user || "YouTube Music",
-            thumbnail: data.thumbnail,
-            permalink_url
+            user: metadataToUse?.user || data.user || "YouTube Music",
+            thumbnail: metadataToUse?.thumbnail || data.thumbnail,
+            permalink_url: finalPermalinkUrl
           };
         }
       } else {
         if (data.status && data.data) {
-          trackData = { ...data.data, permalink_url, thumbnail: data.data.thumbnail || data.data.image };
+          trackInfo = { ...data.data, permalink_url: finalPermalinkUrl, thumbnail: data.data.thumbnail || data.data.image };
         }
       }
 
-      if (trackData && trackData.url) {
-        const audioRes = await fetch(trackData.url);
+      if (trackInfo && trackInfo.url) {
+        const audioRes = await fetch(trackInfo.url);
         const blob = await audioRes.blob();
         const objectUrl = URL.createObjectURL(blob);
         await localforage.setItem('temp_playing_blob', blob);
-        
-        const finalTrack = { ...trackData, url: objectUrl };
+
+        const finalTrack = { ...trackInfo, url: objectUrl };
         setCurrentTrack(finalTrack);
         setIsPlaying(true);
         saveToHistory(finalTrack);
@@ -971,7 +983,6 @@ export default function App() {
       setIsLoadingTrack(false);
     }
   };
-
   const cleanupTempTrack = async () => {
     try {
       // Hapus blob dari memori browser
