@@ -390,24 +390,39 @@ export default function App() {
   const fetchTrending = async () => {
     setIsLoadingTrending(true);
     try {
-      // Gunakan API internal Vercel
-      const url = `${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent('Spotify Top Hits 2024')}`;
+      // 1. Ambil daftar lagu yang sedang hits di Spotify Indonesia
+      const res = await fetch(`${API_BASE_URL}/api/spotify/trending`);
+      const spotifyTracks = await res.json();
       
-      const res = await fetch(url);
-      const data = await res.json();
-      
-      if (data && data.items) {
-        const mapped = data.items.map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          user: t.channelTitle || "YouTube Music",
-          artwork_url: t.thumbnail?.thumbnails?.[0]?.url || "",
-          thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
-          permalink_url: `https://www.youtube.com/watch?v=${t.id}`,
-          duration: 0,
-          permalink: t.id
-        }));
-        setTrendingResults(mapped);
+      if (Array.isArray(spotifyTracks)) {
+        const trendingWithYoutube: SearchResult[] = [];
+        
+        // 2. Ambil 6 lagu teratas saja untuk mempercepat loading Home
+        for (let i = 0; i < Math.min(spotifyTracks.length, 10); i++) {
+          const track = spotifyTracks[i];
+          try {
+            const searchQuery = `${track.title} ${track.artist} (spotify)`;
+            const ytRes = await fetch(`${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(searchQuery)}`);
+            const ytData = await ytRes.json();
+            
+            if (ytData && ytData.items && ytData.items.length > 0) {
+              const firstResult = ytData.items[0];
+              trendingWithYoutube.push({
+                id: firstResult.id,
+                title: track.title, // Pakai judul rapi dari spotify
+                user: track.artist, // Pakai nama artis rapi dari spotify
+                artwork_url: track.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
+                thumbnail: track.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
+                permalink_url: `https://www.youtube.com/watch?v=${firstResult.id}`,
+                duration: 0,
+                permalink: firstResult.id
+              });
+            }
+          } catch (e) {
+            console.error("Failed to find YT for trending track", e);
+          }
+        }
+        setTrendingResults(trendingWithYoutube);
       }
     } catch (error) {
       console.error("Failed to fetch trending:", error);

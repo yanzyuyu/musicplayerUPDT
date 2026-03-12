@@ -11,17 +11,33 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Helper untuk mengambil nama artis dari berbagai kemungkinan struktur Spotify
+// Helper Artist
 const getArtistName = (track: any) => {
-  if (track.artists && Array.isArray(track.artists) && track.artists.length > 0) {
-    return track.artists.map((a: any) => a.name).join(", ");
-  }
+  if (track.artists && Array.isArray(track.artists) && track.artists.length > 0) return track.artists.map((a: any) => a.name).join(", ");
   if (track.artist) return track.artist;
-  if (track.artists && typeof track.artists === 'string') return track.artists;
   return "Unknown Artist";
 };
 
-// YouTube Search
+// 1. Spotify Trending (Top 50 Indonesia)
+app.get("/api/spotify/trending", async (req, res) => {
+  try {
+    // Playlist ID untuk Top 50 Indonesia
+    const url = "https://open.spotify.com/playlist/37i9dQZF1DX48TT0tI5qvO"; 
+    const tracks = await getTracks(url);
+    
+    const mapped = tracks.slice(0, 20).map((track: any) => ({
+      title: track.name,
+      artist: getArtistName(track),
+      thumbnail: track.album?.images?.[0]?.url || ""
+    }));
+    
+    res.json(mapped);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch Spotify trending" });
+  }
+});
+
+// 2. YouTube Search
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -32,64 +48,32 @@ app.get("/api/search/youtube", async (req, res) => {
   }
 });
 
-// YouTube Download (RapidAPI)
+// 3. YouTube Download (RapidAPI)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
-    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
     const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
-    
     const response = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`, {
-      headers: {
-        'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879',
-        'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com'
-      }
+      headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879', 'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com' }
     });
     const data = await response.json();
-    if (data.status === 'ok') {
-      res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
-    } else throw new Error(data.msg || "RapidAPI failed");
-  } catch (error: any) {
-    res.status(500).json({ error: "Gagal mengambil link download.", details: error.message });
-  }
+    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` });
+    else throw new Error("Failed");
+  } catch (error: any) { res.status(500).json({ error: "Failed" }); }
 });
 
-// Spotify Playlist Info (DIOPTIMASI)
+// 4. Spotify Playlist Info
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
     const tracks = await getTracks(url);
-    const playlistDetails = await getDetails(url);
-
-    const mappedTracks = tracks.map((track: any) => {
-      // Coba ambil nama artis dengan lebih teliti
-      const artist = getArtistName(track);
-      
-      // Ambil thumbnail (biasanya ada di album.images atau coverArt)
-      const thumbnail = track.album?.images?.[0]?.url || 
-                        track.coverArt?.sources?.[0]?.url || 
-                        playlistDetails.preview?.image || "";
-
-      return {
-        title: track.name || track.title,
-        artist: artist,
-        thumbnail: thumbnail,
-        duration: track.duration_ms ? Math.floor(track.duration_ms / 1000) : 0
-      };
-    });
-
-    res.json({ 
-      name: playlistDetails.preview?.title || "Spotify Playlist", 
-      artwork_url: playlistDetails.preview?.image || "", 
-      tracks: mappedTracks 
-    });
-  } catch (error) {
-    console.error("Spotify Error:", error);
-    res.status(500).json({ error: "Spotify fetch failed" });
-  }
+    const details = await getDetails(url);
+    const mapped = tracks.map((t: any) => ({ title: t.name, artist: getArtistName(t), thumbnail: t.album?.images?.[0]?.url || "", duration: Math.floor(t.duration_ms / 1000) }));
+    res.json({ name: details.preview?.title, artwork_url: details.preview?.image, tracks: mapped });
+  } catch (error) { res.status(500).json({ error: "Failed" }); }
 });
 
-// SoundCloud/External Search & Download (Proxy)
+// SoundCloud
 app.get("/api/search/soundcloud", async (req, res) => {
   try {
     const response = await fetch(`https://api.siputzx.my.id/api/s/soundcloud?query=${encodeURIComponent(req.query.query as string)}`);
@@ -105,30 +89,15 @@ app.get("/api/download/external", async (req, res) => {
   } catch (e) { res.status(500).json({error: "Failed"}); }
 });
 
-// History API
+// History
 const getDb = () => {
   const Database = require("better-sqlite3");
   const db = new Database(process.env.VERCEL ? ':memory:' : 'history.db');
   db.exec(`CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT NOT NULL, permalink_url TEXT, thumbnail TEXT, duration INTEGER, user TEXT, description TEXT, played_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
   return db;
 };
-
-app.get("/api/history", (req, res) => {
-  try { res.json(getDb().prepare('SELECT * FROM history ORDER BY played_at DESC LIMIT 50').all()); }
-  catch (e) { res.json([]); }
-});
-
-app.post("/api/history", (req, res) => {
-  try {
-    const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
-    getDb().prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)').run(title, url, permalink_url, thumbnail, duration, user, description);
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: "Save failed" }); }
-});
-
-app.delete("/api/history", (req, res) => {
-  try { getDb().prepare('DELETE FROM history').run(); res.json({ success: true }); }
-  catch (e) { res.status(500).json({ error: "Delete failed" }); }
-});
+app.get("/api/history", (req, res) => { try { res.json(getDb().prepare('SELECT * FROM history ORDER BY played_at DESC LIMIT 50').all()); } catch (e) { res.json([]); } });
+app.post("/api/history", (req, res) => { try { const { title, url, permalink_url, thumbnail, duration, user, description } = req.body; getDb().prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)').run(title, url, permalink_url, thumbnail, duration, user, description); res.json({ success: true }); } catch (e) { res.status(500).json({ error: "Failed" }); } });
+app.delete("/api/history", (req, res) => { try { getDb().prepare('DELETE FROM history').run(); res.json({ success: true }); } catch (e) { res.status(500).json({ error: "Failed" }); } });
 
 export default app;
