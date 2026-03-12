@@ -142,6 +142,7 @@ async function start() {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   } else {
+    // Di Vercel, file statis dilayani secara otomatis jika kita build di folder 'dist'
     app.use(express.static('dist'));
   }
 }
