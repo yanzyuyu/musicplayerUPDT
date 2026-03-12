@@ -5,6 +5,9 @@ import path from "path";
 import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
+import spotifyUrlInfo from "spotify-url-info";
+
+const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 
 const db = new Database('history.db');
 
@@ -39,6 +42,32 @@ async function startServer() {
     } catch (error) {
       console.error("YouTube search error:", error);
       res.status(500).json({ error: "Failed to fetch from YouTube" });
+    }
+  });
+
+  app.get("/api/spotify/playlist", async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) return res.status(400).json({ error: "URL is required" });
+
+      const tracks = await getTracks(url);
+      const playlistDetails = await getDetails(url);
+
+      const mappedTracks = tracks.map(track => ({
+        title: track.name,
+        artist: track.artists?.map(a => a.name).join(", ") || "Unknown Artist",
+        thumbnail: track.album?.images?.[0]?.url || "",
+        duration: Math.floor(track.duration_ms / 1000)
+      }));
+
+      res.json({
+        name: playlistDetails.preview.title || "Spotify Playlist",
+        artwork_url: playlistDetails.preview.image || "",
+        tracks: mappedTracks
+      });
+    } catch (error) {
+      console.error("Spotify playlist error:", error);
+      res.status(500).json({ error: "Failed to fetch Spotify playlist. Make sure it is public." });
     }
   });
 

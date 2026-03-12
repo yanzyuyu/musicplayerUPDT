@@ -50,6 +50,11 @@ interface Playlist {
   artwork_url?: string;
 }
 
+// Ganti dengan URL Vercel asli Anda nantinya
+const API_BASE_URL = Capacitor.isNativePlatform() 
+  ? 'https://musicplayer-updt.vercel.app' 
+  : '';
+
 export default function App() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -81,6 +86,83 @@ export default function App() {
     }
   });
   
+  const [isSpotifyImportModalOpen, setIsSpotifyImportModalOpen] = useState(false);
+  const [spotifyPlaylistUrl, setSpotifyPlaylistUrl] = useState('');
+  const [isImportingSpotify, setIsImportingSpotify] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importSuccessData, setImportSuccessData] = useState<{name: string, count: number, total: number} | null>(null);
+
+  const importSpotifyPlaylist = async () => {
+    if (!spotifyPlaylistUrl.trim()) return;
+    setIsImportingSpotify(true);
+    setImportSuccessData(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/spotify/playlist?url=${encodeURIComponent(spotifyPlaylistUrl)}`);
+      if (!res.ok) throw new Error("Failed to fetch Spotify playlist");
+      const data = await res.json();
+      
+      setImportProgress({ current: 0, total: data.tracks.length });
+      
+      const importedTracks: SearchResult[] = [];
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      for (let i = 0; i < data.tracks.length; i++) {
+        const track = data.tracks[i];
+        setImportProgress({ current: i + 1, total: data.tracks.length });
+        
+        try {
+          const searchQuery = `${track.title} ${track.artist}`;
+          const ytRes = await fetch(`${API_BASE_URL}/api/search/youtube?query=${encodeURIComponent(searchQuery)}`);
+          const ytData = await ytRes.json();
+          
+          if (ytData && ytData.items && ytData.items.length > 0) {
+            const firstResult = ytData.items[0];
+            importedTracks.push({
+              id: firstResult.id,
+              title: firstResult.title,
+              user: track.artist,
+              artwork_url: track.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
+              thumbnail: track.thumbnail || firstResult.thumbnail?.thumbnails?.[0]?.url || "",
+              permalink_url: `https://www.youtube.com/watch?v=${firstResult.id}`,
+              duration: track.duration,
+              permalink: firstResult.id
+            });
+          }
+          
+          await delay(800);
+          
+        } catch (err) {
+          console.error(`Gagal mencari lagu YouTube untuk: ${track.title}`, err);
+        }
+      }
+      
+      if (importedTracks.length > 0) {
+        const newPlaylist: Playlist = {
+          id: `spotify_${Date.now()}`,
+          name: data.name,
+          artwork_url: data.artwork_url,
+          tracks: importedTracks
+        };
+        setPlaylists(prev => [...prev, newPlaylist]);
+        setImportSuccessData({
+          name: data.name,
+          count: importedTracks.length,
+          total: data.tracks.length
+        });
+        setIsSpotifyImportModalOpen(false);
+        setSpotifyPlaylistUrl('');
+      } else {
+        alert("Tidak ada lagu yang berhasil ditemukan di YouTube.");
+      }
+    } catch (error) {
+      console.error("Spotify import error:", error);
+      alert("Gagal mengimpor playlist Spotify. Pastikan link benar dan playlist publik.");
+    } finally {
+      setIsImportingSpotify(false);
+      setImportProgress({ current: 0, total: 0 });
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'home' | 'search' | 'library'>('home');
   const [isBassBoost, setIsBassBoost] = useState(false);
   const [libraryTab, setLibraryTab] = useState<'playlists' | 'downloads' | 'history'>('playlists');
@@ -1346,13 +1428,22 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        <button 
-                          onClick={(e) => openAddModal(e, null)}
-                          className="w-full py-4 border-2 border-dashed border-zinc-800 rounded-3xl text-zinc-500 flex items-center justify-center gap-2 hover:bg-zinc-900 hover:border-zinc-700 transition-all group"
-                        >
-                          <Plus className="w-5 h-5 group-hover:text-emerald-500 transition-colors" />
-                          <span className="font-bold">Buat Playlist Baru</span>
-                        </button>
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={(e) => openAddModal(e, null)}
+                            className="flex-1 py-4 border-2 border-dashed border-zinc-800 rounded-3xl text-zinc-500 flex items-center justify-center gap-2 hover:bg-zinc-900 hover:border-zinc-700 transition-all group"
+                          >
+                            <Plus className="w-5 h-5 group-hover:text-emerald-500 transition-colors" />
+                            <span className="font-bold">Buat Baru</span>
+                          </button>
+                          <button 
+                            onClick={() => setIsSpotifyImportModalOpen(true)}
+                            className="flex-1 py-4 border-2 border-dashed border-emerald-900/30 rounded-3xl text-emerald-600/70 flex items-center justify-center gap-2 hover:bg-emerald-950/20 hover:border-emerald-500/50 transition-all group"
+                          >
+                            <Music className="w-5 h-5 group-hover:text-emerald-500 transition-colors" />
+                            <span className="font-bold">Impor Spotify</span>
+                          </button>
+                        </div>
                         
                         {playlists.length === 0 ? (
                           <div className="text-center py-12 text-zinc-600">
@@ -1777,6 +1868,76 @@ export default function App() {
         </div>
       )}
 
+      {/* Spotify Import Modal */}
+      {isSpotifyImportModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-6">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-zinc-800">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-zinc-950">
+                  <Music className="w-6 h-6" />
+                </div>
+                <h3 className="text-2xl font-bold">Impor Spotify</h3>
+              </div>
+              {!isImportingSpotify && (
+                <button onClick={() => setIsSpotifyImportModalOpen(false)} className="p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {isImportingSpotify ? (
+              <div className="space-y-8 py-4">
+                <div className="flex flex-col items-center justify-center gap-6">
+                  <div className="relative">
+                    <div className="w-24 h-24 border-4 border-emerald-500/10 rounded-full" />
+                    <div className="absolute inset-0 w-24 h-24 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <Music className="absolute inset-0 m-auto w-10 h-10 text-emerald-500 animate-pulse" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-bold text-white">Sedang mengimpor lagu...</p>
+                    <p className="text-emerald-500 font-mono text-sm">{importProgress.current} / {importProgress.total}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-zinc-500 text-center uppercase tracking-widest font-bold">Mohon jangan tutup aplikasi</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  Tempelkan link playlist Spotify publik Anda di bawah. Kami akan mencari versi YouTube-nya secara otomatis.
+                </p>
+                <div className="space-y-4">
+                  <input 
+                    type="text" 
+                    value={spotifyPlaylistUrl} 
+                    onChange={e => setSpotifyPlaylistUrl(e.target.value)}
+                    placeholder="https://open.spotify.com/playlist/..." 
+                    className="w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-500/50 rounded-xl py-4 px-4 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20" 
+                  />
+                  <button 
+                    onClick={importSpotifyPlaylist}
+                    disabled={!spotifyPlaylistUrl.includes('spotify.com')}
+                    className="w-full bg-emerald-500 text-zinc-950 py-4 rounded-xl font-bold active:scale-95 transition-all shadow-lg shadow-emerald-500/10 disabled:opacity-50 disabled:grayscale"
+                  >
+                    Mulai Impor
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
+
       <audio 
         ref={audioRef} 
         src={currentTrack?.url} 
@@ -1902,6 +2063,77 @@ export default function App() {
                 >
                   Ya, Hapus
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Spotify Import Success Overlay */}
+      <AnimatePresence>
+        {importSuccessData && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[200] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-zinc-900 rounded-[3rem] p-10 w-full max-w-md shadow-2xl border border-emerald-500/20 text-center space-y-8 relative overflow-hidden"
+            >
+              {/* Background Glow */}
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+
+              <div className="relative">
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', delay: 0.2 }}
+                  className="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                >
+                  <CheckCircle2 className="w-12 h-12 text-zinc-950" />
+                </motion.div>
+                
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="mt-8 space-y-3"
+                >
+                  <h3 className="text-3xl font-bold text-white">Impor Selesai!</h3>
+                  <p className="text-zinc-400 leading-relaxed">
+                    Playlist <span className="text-emerald-400 font-bold">"{importSuccessData.name}"</span> berhasil dibuat.
+                  </p>
+                </motion.div>
+
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="grid grid-cols-2 gap-4 mt-8"
+                >
+                  <div className="bg-zinc-800/50 p-4 rounded-3xl border border-zinc-700">
+                    <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Berhasil</p>
+                    <p className="text-2xl font-black text-emerald-500">{importSuccessData.count}</p>
+                  </div>
+                  <div className="bg-zinc-800/50 p-4 rounded-3xl border border-zinc-700">
+                    <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Total Lagu</p>
+                    <p className="text-2xl font-black text-white">{importSuccessData.total}</p>
+                  </div>
+                </motion.div>
+
+                <motion.button 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  onClick={() => {
+                    setImportSuccessData(null);
+                    setActiveTab('library');
+                    setLibraryTab('playlists');
+                  }}
+                  className="w-full mt-10 bg-white text-black py-5 rounded-[2rem] font-bold text-lg active:scale-95 transition-all shadow-xl"
+                >
+                  Lihat Playlist
+                </motion.button>
               </div>
             </motion.div>
           </div>
