@@ -1125,12 +1125,11 @@ export default function App() {
   };
 
   const handlePause = () => {
-    // Jika isPlaying masih true tapi audio terhenti (misal kena VN), coba restart setelah delay
-    if (isPlaying) {
+    // JANGAN auto-restart jika memang sedang memuat lagu baru
+    if (isPlaying && !isLoadingTrack) {
       setTimeout(() => {
-        if (isPlaying && audioRef.current && audioRef.current.paused) {
+        if (isPlaying && !isLoadingTrack && audioRef.current && audioRef.current.paused) {
           audioRef.current.play().catch(() => {
-            // Jika gagal play (mungkin VN masih jalan), biarkan isPlaying tetap true agar user bisa klik play manual
             console.log("Auto-restart failed, possibly still interrupted");
           });
         }
