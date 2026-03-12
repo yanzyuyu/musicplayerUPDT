@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fetch from "node-fetch";
 import "dotenv/config";
@@ -16,8 +15,6 @@ async function initDb() {
   if (db) return db;
   try {
     const Database = (await import("better-sqlite3")).default;
-    // Di Vercel, gunakan folder /tmp yang diizinkan untuk menulis, 
-    // atau gunakan :memory: agar tidak crash
     const dbPath = isVercel ? ':memory:' : 'history.db';
     db = new Database(dbPath);
     
@@ -34,10 +31,9 @@ async function initDb() {
         played_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log(`Database initialized at ${dbPath}`);
     return db;
   } catch (e) {
-    console.error("Database initialization failed, history features will be disabled:", e);
+    console.error("Database initialization failed:", e);
     return null;
   }
 }
@@ -50,13 +46,11 @@ app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
     if (!query) return res.status(400).json({ error: "Query is required" });
-    
-    // Gunakan youtube-search-api
     const results = await yt.GetListByKeyword(query, false, 20);
     res.json(results);
   } catch (error) {
     console.error("YouTube search error:", error);
-    res.status(500).json({ error: "Failed to fetch from YouTube", details: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: "Failed to fetch from YouTube" });
   }
 });
 
@@ -100,29 +94,44 @@ app.get("/api/history", async (req, res) => {
 app.post("/api/history", async (req, res) => {
   try {
     const database = await initDb();
-    if (!database) return res.json({ success: false, message: "Database disabled" });
-    
+    if (!database) return res.json({ success: false });
     const { title, url, permalink_url, thumbnail, duration, user, description } = req.body;
     const stmt = database.prepare('INSERT INTO history (title, url, permalink_url, thumbnail, duration, user, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    const info = stmt.run(title, url, permalink_url, thumbnail, duration, user, description);
-    res.json({ success: true, id: info.lastInsertRowid });
+    stmt.run(title, url, permalink_url, thumbnail, duration, user, description);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to save history" });
+  }
+});
+
+app.delete("/api/history", async (req, res) => {
+  try {
+    const database = await initDb();
+    if (!database) return res.json({ success: false });
+    database.prepare('DELETE FROM history').run();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to clear history" });
   }
 });
 
 // Start logic (hanya untuk lokal)
 if (!isVercel) {
   const PORT = 3000;
-  createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  }).then(vite => {
+  // Dynamic import Vite agar tidak diload Vercel
+  import("vite").then(async (viteModule) => {
+    const vite = await viteModule.createServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
     app.use(vite.middlewares);
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   });
+} else {
+  // Sajikan statis di Vercel
+  app.use(express.static(path.join(process.cwd(), 'dist')));
 }
 
 // Export for Vercel
