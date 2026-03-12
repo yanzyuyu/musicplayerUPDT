@@ -73,7 +73,6 @@ export default function App() {
   const [volume, setVolume] = useState(1);
   
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
-  const [isEQOpen, setIsEQOpen] = useState(false);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
@@ -628,49 +627,27 @@ export default function App() {
     }
   };
 
-  const [eqGains, setEqGains] = useState({ bass: 0, mid: 0, treble: 0 });
-  const midFilterRef = useRef<BiquadFilterNode | null>(null);
-  const trebleFilterRef = useRef<BiquadFilterNode | null>(null);
-
   const initAudioContext = () => {
     if (!audioCtxRef.current && audioRef.current) {
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
-
-        const gainNode = ctx.createGain();
-        gainNode.gain.value = 2.5; // Super Boost 2.5x
-
+        
         const bassFilter = ctx.createBiquadFilter();
         bassFilter.type = 'lowshelf';
         bassFilter.frequency.value = 200;
-        bassFilter.gain.value = isBassBoost ? 15 : eqGains.bass;
-
-        const midFilter = ctx.createBiquadFilter();
-        midFilter.type = 'peaking';
-        midFilter.frequency.value = 1000;
-        midFilter.gain.value = eqGains.mid;
-
-        const trebleFilter = ctx.createBiquadFilter();
-        trebleFilter.type = 'highshelf';
-        trebleFilter.frequency.value = 3000;
-        trebleFilter.gain.value = eqGains.treble;
-
+        bassFilter.gain.value = isBassBoost ? 15 : 0;
+        
         const source = ctx.createMediaElementSource(audioRef.current);
         source.connect(bassFilter);
-        bassFilter.connect(midFilter);
-        midFilter.connect(trebleFilter);
-        trebleFilter.connect(gainNode);
-        gainNode.connect(analyser);
+        bassFilter.connect(analyser);
         analyser.connect(ctx.destination);
-
+        
         audioCtxRef.current = ctx;
         analyserRef.current = analyser;
         sourceRef.current = source;
         bassFilterRef.current = bassFilter;
-        midFilterRef.current = midFilter;
-        trebleFilterRef.current = trebleFilter;
       } catch (e) {
         console.error("Audio context init failed:", e);
       }
@@ -678,13 +655,6 @@ export default function App() {
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
   };
 
-  useEffect(() => {
-    if (audioCtxRef.current) {
-      if (bassFilterRef.current) bassFilterRef.current.gain.setTargetAtTime(isBassBoost ? 15 : eqGains.bass, audioCtxRef.current.currentTime, 0.1);
-      if (midFilterRef.current) midFilterRef.current.gain.setTargetAtTime(eqGains.mid, audioCtxRef.current.currentTime, 0.1);
-      if (trebleFilterRef.current) trebleFilterRef.current.gain.setTargetAtTime(eqGains.treble, audioCtxRef.current.currentTime, 0.1);
-    }
-  }, [isBassBoost, eqGains]);
   useEffect(() => {
     if (bassFilterRef.current && audioCtxRef.current) {
       bassFilterRef.current.gain.setTargetAtTime(isBassBoost ? 15 : 0, audioCtxRef.current.currentTime, 0.1);
@@ -934,13 +904,6 @@ export default function App() {
   }, []);
 
   const playTrack = async (permalink_url: string, trackData?: any) => {
-    // SEGERA hentikan lagu lama agar tidak 'bocor' saat loading
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = ""; 
-    }
-    setIsPlaying(false);
-
     if (!isOnline) {
       const offlineData: any = await localforage.getItem(`track_${permalink_url}`);
       if (!offlineData) {
@@ -1020,9 +983,12 @@ export default function App() {
       }
 
       if (trackInfo && trackInfo.url) {
-        // PERBAIKAN: Langsung putar link (Direct Stream) agar tidak loading selamanya
-        // Kita tidak perlu download ke Blob dulu karena sering diblokir server (CORS)
-        const finalTrack = { ...trackInfo, url: trackInfo.url };
+        const audioRes = await fetch(trackInfo.url);
+        const blob = await audioRes.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        await localforage.setItem('temp_playing_blob', blob);
+
+        const finalTrack = { ...trackInfo, url: objectUrl };
         setCurrentTrack(finalTrack);
         setIsPlaying(true);
         saveToHistory(finalTrack);
@@ -1048,16 +1014,12 @@ export default function App() {
   };
 
   const handleTrackEnd = () => {
-    cleanupTempTrack(); 
-    
-    // Jika mode repeat 'one', putar ulang lagu yang sama
+    cleanupTempTrack(); // Hapus file lama setelah selesai
     if (repeatMode === 'one' && audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play();
       return;
     }
-    
-    // Jika tidak, putar lagu selanjutnya di antrean
     playNext();
   };
 
@@ -1065,22 +1027,15 @@ export default function App() {
     const activeQueue = isShuffle ? shuffledQueue : queue;
     if (activeQueue.length > 0) {
       let nextIndex = queueIndex + 1;
-      
-      // Jika sudah di akhir antrean
       if (nextIndex >= activeQueue.length) {
-        if (repeatMode === 'all') {
-          nextIndex = 0; // Putar balik dari awal antrean
-        } else {
-          setIsPlaying(false); // Selesai
+        if (repeatMode === 'all') nextIndex = 0;
+        else {
+          setIsPlaying(false);
           return;
         }
       }
-      
       setQueueIndex(nextIndex);
-      const nextTrack = activeQueue[nextIndex];
-      if (nextTrack) {
-        playTrack(nextTrack.permalink_url, nextTrack);
-      }
+      playTrack(activeQueue[nextIndex].permalink_url);
     }
   };
 
@@ -1149,11 +1104,12 @@ export default function App() {
   };
 
   const handlePause = () => {
-    // JANGAN auto-restart jika memang sedang memuat lagu baru
-    if (isPlaying && !isLoadingTrack) {
+    // Jika isPlaying masih true tapi audio terhenti (misal kena VN), coba restart setelah delay
+    if (isPlaying) {
       setTimeout(() => {
-        if (isPlaying && !isLoadingTrack && audioRef.current && audioRef.current.paused) {
+        if (isPlaying && audioRef.current && audioRef.current.paused) {
           audioRef.current.play().catch(() => {
+            // Jika gagal play (mungkin VN masih jalan), biarkan isPlaying tetap true agar user bisa klik play manual
             console.log("Auto-restart failed, possibly still interrupted");
           });
         }
