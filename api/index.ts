@@ -55,9 +55,16 @@ app.get("/api/download/youtube", async (req, res) => {
       headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879', 'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com' }
     });
     const data = await response.json();
-    if (data.status === 'ok') res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
-    else throw new Error("Failed");
-  } catch (error: any) { res.status(500).json({ error: "Failed" }); }
+    if (data.status === 'ok') {
+      res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
+    } else {
+      console.error("RapidAPI Error Response:", data);
+      res.status(500).json({ error: "RapidAPI returned an error", details: data });
+    }
+  } catch (error: any) {
+    console.error("Internal Server Error:", error.message);
+    res.status(500).json({ error: "Internal Server Error", message: error.message });
+  }
 });
 
 // 4. Spotify Playlist Info (DIOPTIMASI)
