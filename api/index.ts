@@ -8,6 +8,7 @@ import "cheerio";
 import "axios";
 import "form-data";
 import "yt-search";
+import "@distube/ytdl-core";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
