@@ -1,23 +1,18 @@
 import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
-import yt from "youtube-search-api";
+import ytSearch from "youtube-search-api";
 import { createRequire } from "module";
-import { ytmp3 } from "ruhend-scraper";
-import "cheerio";
-import "axios";
-import "form-data";
-import "yt-search";
-import "@distube/ytdl-core";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
 const { getDetails, getTracks } = spotifyUrlInfo(fetch);
+const { ytmp3 } = require("@dark-yasiya/yt-dl.js");
 
 const app = express();
 app.use(express.json());
 
-// Helper Artist - Jauh lebih kuat untuk menghindari "Unknown"
+// Helper Artist
 const getArtistName = (track: any) => {
   try {
     if (track.artists && Array.isArray(track.artists) && track.artists.length > 0) {
@@ -29,7 +24,7 @@ const getArtistName = (track: any) => {
   return "";
 };
 
-// 1. Metadata Search (iTunes)
+// 1. Metadata Search
 app.get("/api/search/metadata", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -42,47 +37,46 @@ app.get("/api/search/metadata", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Metadata search failed" }); }
 });
 
-// 2. YouTube Search (Hanya Musik)
+// 2. YouTube Search
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
     const musicOnlyQuery = `${query} music official`;
-    const results = await yt.GetListByKeyword(musicOnlyQuery, false, 20);
+    const results = await ytSearch.GetListByKeyword(musicOnlyQuery, false, 20);
     res.json(results);
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (Local via ruhend-scraper)
+// 3. YouTube Download (Local via @dark-yasiya/yt-dl.js)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
 
-    // Menggunakan ruhend-scraper untuk mendapatkan link download MP3
+    // Menggunakan @dark-yasiya/yt-dl.js
     const data = await ytmp3(videoUrl);
     
-    if (data && data.download) {
+    if (data && data.status && data.download) {
       res.json({ 
         status: "ok", 
-        title: data.title || "YouTube Audio", 
-        link: data.download, 
-        thumbnail: data.image || `https://i.ytimg.com/vi/${videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop()}/hqdefault.jpg`, 
-        user: "YouTube Music" 
+        title: data.result?.title || "YouTube Audio", 
+        link: data.download.url, 
+        thumbnail: data.result?.image || `https://i.ytimg.com/vi/${videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop()}/hqdefault.jpg`, 
+        user: data.result?.author?.name || "YouTube Music" 
       });
     } else {
       throw new Error("Gagal mengambil link download");
     }
   } catch (error: any) {
-    console.error("ruhend-scraper Error:", error.message);
+    console.error("yt-dl.js Error:", error.message);
     res.status(500).json({ 
       error: "Download failed", 
-      message: error.message,
-      tip: "Gunakan API cadangan jika scraper lokal gagal."
+      message: error.message 
     });
   }
 });
 
-// 4. Spotify Playlist Info (DIOPTIMASI)
+// 4. Spotify Playlist Info
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
@@ -90,7 +84,7 @@ app.get("/api/spotify/playlist", async (req, res) => {
     const details = await getDetails(url);
     const mapped = tracks.map((t: any) => ({
       title: t.name || t.title,
-      artist: getArtistName(t), // Jauh lebih akurat sekarang
+      artist: getArtistName(t),
       thumbnail: t.album?.images?.[0]?.url || t.coverArt?.sources?.[0]?.url || details.preview?.image || "",
       duration: Math.floor(t.duration_ms / 1000)
     }));
@@ -98,10 +92,10 @@ app.get("/api/spotify/playlist", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Spotify fetch failed" }); }
 });
 
-// 5. Spotify Trending (Dibuat super stabil via YT)
+// 5. Spotify Trending
 app.get("/api/spotify/trending", async (req, res) => {
   try {
-    const results = await yt.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 25);
+    const results = await ytSearch.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 25);
     const mapped = (results.items || []).map((t: any) => ({
       title: t.title, artist: t.channelTitle || "YouTube Music", thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
       permalink_url: `https://www.youtube.com/watch?v=${t.id}`, id: t.id
