@@ -7,6 +7,7 @@ import { ytmp3 } from "ruhend-scraper";
 import "cheerio";
 import "axios";
 import "form-data";
+import "yt-search";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
