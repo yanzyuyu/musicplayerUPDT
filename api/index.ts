@@ -46,65 +46,63 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-import ytdl from "@distube/ytdl-core";
+import ytdl from "ytdl-core";
 
-// Inisialisasi Agent dengan Cookies jika tersedia
-const getAgent = () => {
-  try {
-    const cookieString = process.env.YT_COOKIE;
-    if (cookieString) {
-      // @distube/ytdl-core mendukung array cookie atau string JSON
-      const cookies = JSON.parse(cookieString);
-      return ytdl.createAgent(cookies);
-    }
-  } catch (e) {
-    console.error("Gagal parsing YT_COOKIE:", e.message);
-  }
-  return undefined;
-};
-
-const agent = getAgent();
+const app = express();
+app.use(express.json());
 
 // ... existing code ...
 
-// 3. YouTube Download (Multi-Source Fallback)
+// 3. YouTube Download (Local via ytdl-core)
 app.get("/api/download/youtube", async (req, res) => {
-  const videoUrl = req.query.url as string;
-  if (!videoUrl) return res.status(400).json({ error: "URL is required" });
-  const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
+  try {
+    const videoUrl = req.query.url as string;
+    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
 
-  // Daftar API alternatif yang biasanya stabil
-  const apiSources = [
-    `https://api.agatz.xyz/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-    `https://api.dikiotake.com/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-    `https://api.miftah.xyz/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`
-  ];
-
-  for (const source of apiSources) {
-    try {
-      console.log(`Trying source: ${source}`);
-      const response = await fetch(source);
-      const data = await response.json();
-
-      // Penyesuaian parsing berdasarkan struktur masing-masing API
-      let downloadLink = data.data?.mp3 || data.result?.url || data.url || data.data?.dl;
-      let title = data.data?.title || data.result?.title || "YouTube Audio";
-
-      if (downloadLink) {
-        return res.json({ 
-          status: "ok", 
-          title: title, 
-          link: downloadLink, 
-          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-          user: "YouTube Music" 
-        });
+    // Konfigurasi untuk meminimalisir bot detection
+    const options: any = {
+      quality: 'highestaudio',
+      filter: 'audioonly',
+      requestOptions: {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Origin': 'https://www.youtube.com',
+          'Referer': 'https://www.youtube.com/',
+        }
       }
-    } catch (e) {
-      console.error(`Source ${source} failed, trying next...`);
-    }
-  }
+    };
 
-  res.status(500).json({ error: "Semua sumber download sedang sibuk atau maintenance. Coba lagi nanti." });
+    // Ambil info video
+    const info = await ytdl.getInfo(videoUrl, options);
+    
+    // Pilih format audio
+    const format = ytdl.chooseFormat(info.formats, { 
+      quality: 'highestaudio', 
+      filter: 'audioonly' 
+    });
+
+    if (format && format.url) {
+      res.json({ 
+        status: "ok", 
+        title: info.videoDetails.title, 
+        link: format.url, 
+        thumbnail: info.videoDetails.thumbnails[0].url, 
+        user: info.videoDetails.author.name,
+        duration: parseInt(info.videoDetails.lengthSeconds)
+      });
+    } else {
+      throw new Error("No audio format found");
+    }
+  } catch (error: any) {
+    console.error("ytdl-core Error:", error.message);
+    res.status(500).json({ 
+      error: "Gagal memproses video YouTube", 
+      message: error.message,
+      tip: "Jika tetap 'Sign in to confirm you're not a bot', berarti IP Vercel benar-benar sudah diblokir YouTube."
+    });
+  }
 });
 
 // 4. Spotify Playlist Info (DIOPTIMASI)
