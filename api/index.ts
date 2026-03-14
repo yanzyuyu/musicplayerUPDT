@@ -46,32 +46,44 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (Free API - No Quota)
+import ytdl from "@distube/ytdl-core";
+
+// ... existing code ...
+
+// 3. YouTube Download (Local via @distube/ytdl-core)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
-    const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
+    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
+
+    // Cek info video (judul, thumbnail, dll)
+    const info = await ytdl.getInfo(videoUrl);
     
-    // Menggunakan API publik gratis dari siputzx (mirip dengan yang Anda pakai untuk Spotify/Soundcloud)
-    const response = await fetch(`https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(videoUrl)}`);
-    const data = await response.json();
-    
-    // Struktur data biasanya: { status: true, data: { dl: "link", title: "..." } }
-    if (data.status && data.data) {
+    // Pilih format audio saja (mencari bitrate tertinggi yang tersedia)
+    const format = ytdl.chooseFormat(info.formats, { 
+      quality: 'highestaudio', 
+      filter: 'audioonly' 
+    });
+
+    if (format && format.url) {
       res.json({ 
         status: "ok", 
-        title: data.data.title || "YouTube Audio", 
-        link: data.data.dl, 
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-        user: "YouTube Music" 
+        title: info.videoDetails.title, 
+        link: format.url, // Link streaming audio langsung dari YouTube
+        thumbnail: info.videoDetails.thumbnails[0].url, 
+        user: info.videoDetails.author.name,
+        duration: parseInt(info.videoDetails.lengthSeconds)
       });
     } else {
-      console.error("Alternative API Error:", data);
-      res.status(500).json({ error: "Download failed via alternative API", details: data });
+      throw new Error("No audio format found");
     }
   } catch (error: any) {
-    console.error("Internal Server Error:", error.message);
-    res.status(500).json({ error: "Internal Server Error", message: error.message });
+    console.error("YTDL Error:", error.message);
+    res.status(500).json({ 
+      error: "Failed to process YouTube video", 
+      message: error.message,
+      tip: "Jika error 403, server Vercel mungkin sedang diblokir YouTube. Perlu setting cookies."
+    });
   }
 });
 
