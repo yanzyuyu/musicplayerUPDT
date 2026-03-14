@@ -1,8 +1,14 @@
 import express from "express";
 import fetch from "node-fetch";
 import "dotenv/config";
-import ytSearch from "youtube-search-api";
+import ytSearchApi from "youtube-search-api";
 import { createRequire } from "module";
+
+// Force bundle transitive dependencies for Vercel
+import "yt-search";
+import "cheerio";
+import "axios";
+import "form-data";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
@@ -42,7 +48,7 @@ app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
     const musicOnlyQuery = `${query} music official`;
-    const results = await ytSearch.GetListByKeyword(musicOnlyQuery, false, 20);
+    const results = await ytSearchApi.GetListByKeyword(musicOnlyQuery, false, 20);
     res.json(results);
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
@@ -95,7 +101,7 @@ app.get("/api/spotify/playlist", async (req, res) => {
 // 5. Spotify Trending
 app.get("/api/spotify/trending", async (req, res) => {
   try {
-    const results = await ytSearch.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 25);
+    const results = await ytSearchApi.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 25);
     const mapped = (results.items || []).map((t: any) => ({
       title: t.title, artist: t.channelTitle || "YouTube Music", thumbnail: t.thumbnail?.thumbnails?.[0]?.url || "",
       permalink_url: `https://www.youtube.com/watch?v=${t.id}`, id: t.id
