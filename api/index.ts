@@ -3,6 +3,7 @@ import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
 import { createRequire } from "module";
+import ytdl from "ytdl-core";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
@@ -45,13 +46,6 @@ app.get("/api/search/youtube", async (req, res) => {
     res.json(results);
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
-
-import ytdl from "ytdl-core";
-
-const app = express();
-app.use(express.json());
-
-// ... existing code ...
 
 // 3. YouTube Download (Local via ytdl-core)
 app.get("/api/download/youtube", async (req, res) => {
