@@ -67,41 +67,44 @@ const agent = getAgent();
 
 // ... existing code ...
 
-// 3. YouTube Download (Local via @distube/ytdl-core)
+// 3. YouTube Download (Multi-Source Fallback)
 app.get("/api/download/youtube", async (req, res) => {
-  try {
-    const videoUrl = req.query.url as string;
-    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
+  const videoUrl = req.query.url as string;
+  if (!videoUrl) return res.status(400).json({ error: "URL is required" });
+  const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
 
-    // Masukkan agent yang berisi cookies ke dalam requestOptions
-    const options = agent ? { agent } : {};
-    const info = await ytdl.getInfo(videoUrl, options);
-    
-    const format = ytdl.chooseFormat(info.formats, { 
-      quality: 'highestaudio', 
-      filter: 'audioonly' 
-    });
+  // Daftar API alternatif yang biasanya stabil
+  const apiSources = [
+    `https://api.agatz.xyz/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+    `https://api.dikiotake.com/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+    `https://api.miftah.xyz/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`
+  ];
 
-    if (format && format.url) {
-      res.json({ 
-        status: "ok", 
-        title: info.videoDetails.title, 
-        link: format.url, 
-        thumbnail: info.videoDetails.thumbnails[0].url, 
-        user: info.videoDetails.author.name,
-        duration: parseInt(info.videoDetails.lengthSeconds)
-      });
-    } else {
-      throw new Error("No audio format found");
+  for (const source of apiSources) {
+    try {
+      console.log(`Trying source: ${source}`);
+      const response = await fetch(source);
+      const data = await response.json();
+
+      // Penyesuaian parsing berdasarkan struktur masing-masing API
+      let downloadLink = data.data?.mp3 || data.result?.url || data.url || data.data?.dl;
+      let title = data.data?.title || data.result?.title || "YouTube Audio";
+
+      if (downloadLink) {
+        return res.json({ 
+          status: "ok", 
+          title: title, 
+          link: downloadLink, 
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
+          user: "YouTube Music" 
+        });
+      }
+    } catch (e) {
+      console.error(`Source ${source} failed, trying next...`);
     }
-  } catch (error: any) {
-    console.error("YTDL Error:", error.message);
-    res.status(500).json({ 
-      error: "Failed to process YouTube video", 
-      message: error.message,
-      tip: "Pastikan YT_COOKIE di environment variable sudah benar dan masih aktif."
-    });
   }
+
+  res.status(500).json({ error: "Semua sumber download sedang sibuk atau maintenance. Coba lagi nanti." });
 });
 
 // 4. Spotify Playlist Info (DIOPTIMASI)
