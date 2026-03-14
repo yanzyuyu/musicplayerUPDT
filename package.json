@@ -30,6 +30,7 @@
     "node-fetch": "^2.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "ruhend-scraper": "^9.0.8",
     "spotify-search-wrapper": "^0.2.1",
     "spotify-url-info": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
@@ -41,7 +42,6 @@
   "devDependencies": {
     "@capacitor/android": "^8.2.0",
     "@capacitor/cli": "^8.2.0",
-    "@rollup/rollup-linux-x64-gnu": "^4.9.6",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",

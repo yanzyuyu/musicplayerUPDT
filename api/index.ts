@@ -3,7 +3,7 @@ import fetch from "node-fetch";
 import "dotenv/config";
 import yt from "youtube-search-api";
 import { createRequire } from "module";
-import ytdl from "ytdl-core";
+import { ytmp3 } from "ruhend-scraper";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
@@ -47,54 +47,32 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (Local via ytdl-core)
+// 3. YouTube Download (Local via ruhend-scraper)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
 
-    // Konfigurasi untuk meminimalisir bot detection
-    const options: any = {
-      quality: 'highestaudio',
-      filter: 'audioonly',
-      requestOptions: {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': '*/*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Origin': 'https://www.youtube.com',
-          'Referer': 'https://www.youtube.com/',
-        }
-      }
-    };
-
-    // Ambil info video
-    const info = await ytdl.getInfo(videoUrl, options);
+    // Menggunakan ruhend-scraper untuk mendapatkan link download MP3
+    const data = await ytmp3(videoUrl);
     
-    // Pilih format audio
-    const format = ytdl.chooseFormat(info.formats, { 
-      quality: 'highestaudio', 
-      filter: 'audioonly' 
-    });
-
-    if (format && format.url) {
+    if (data && data.download) {
       res.json({ 
         status: "ok", 
-        title: info.videoDetails.title, 
-        link: format.url, 
-        thumbnail: info.videoDetails.thumbnails[0].url, 
-        user: info.videoDetails.author.name,
-        duration: parseInt(info.videoDetails.lengthSeconds)
+        title: data.title || "YouTube Audio", 
+        link: data.download, 
+        thumbnail: data.image || `https://i.ytimg.com/vi/${videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop()}/hqdefault.jpg`, 
+        user: "YouTube Music" 
       });
     } else {
-      throw new Error("No audio format found");
+      throw new Error("Gagal mengambil link download");
     }
   } catch (error: any) {
-    console.error("ytdl-core Error:", error.message);
+    console.error("ruhend-scraper Error:", error.message);
     res.status(500).json({ 
-      error: "Gagal memproses video YouTube", 
+      error: "Download failed", 
       message: error.message,
-      tip: "Jika tetap 'Sign in to confirm you're not a bot', berarti IP Vercel benar-benar sudah diblokir YouTube."
+      tip: "Gunakan API cadangan jika scraper lokal gagal."
     });
   }
 });
