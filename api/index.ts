@@ -46,20 +46,28 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (RapidAPI)
+// 3. YouTube Download (Free API - No Quota)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
-    const response = await fetch(`https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`, {
-      headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY || 'de35706886msh5b5e7598b2a83ebp1c7f95jsn29054b6da879', 'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com' }
-    });
+    
+    // Menggunakan API publik gratis dari siputzx (mirip dengan yang Anda pakai untuk Spotify/Soundcloud)
+    const response = await fetch(`https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(videoUrl)}`);
     const data = await response.json();
-    if (data.status === 'ok') {
-      res.json({ status: "ok", title: data.title, link: data.link, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
+    
+    // Struktur data biasanya: { status: true, data: { dl: "link", title: "..." } }
+    if (data.status && data.data) {
+      res.json({ 
+        status: "ok", 
+        title: data.data.title || "YouTube Audio", 
+        link: data.data.dl, 
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
+        user: "YouTube Music" 
+      });
     } else {
-      console.error("RapidAPI Error Response:", data);
-      res.status(500).json({ error: "RapidAPI returned an error", details: data });
+      console.error("Alternative API Error:", data);
+      res.status(500).json({ error: "Download failed via alternative API", details: data });
     }
   } catch (error: any) {
     console.error("Internal Server Error:", error.message);
