@@ -48,6 +48,23 @@ app.get("/api/search/youtube", async (req, res) => {
 
 import ytdl from "@distube/ytdl-core";
 
+// Inisialisasi Agent dengan Cookies jika tersedia
+const getAgent = () => {
+  try {
+    const cookieString = process.env.YT_COOKIE;
+    if (cookieString) {
+      // @distube/ytdl-core mendukung array cookie atau string JSON
+      const cookies = JSON.parse(cookieString);
+      return ytdl.createAgent(cookies);
+    }
+  } catch (e) {
+    console.error("Gagal parsing YT_COOKIE:", e.message);
+  }
+  return undefined;
+};
+
+const agent = getAgent();
+
 // ... existing code ...
 
 // 3. YouTube Download (Local via @distube/ytdl-core)
@@ -56,10 +73,10 @@ app.get("/api/download/youtube", async (req, res) => {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
 
-    // Cek info video (judul, thumbnail, dll)
-    const info = await ytdl.getInfo(videoUrl);
+    // Masukkan agent yang berisi cookies ke dalam requestOptions
+    const options = agent ? { agent } : {};
+    const info = await ytdl.getInfo(videoUrl, options);
     
-    // Pilih format audio saja (mencari bitrate tertinggi yang tersedia)
     const format = ytdl.chooseFormat(info.formats, { 
       quality: 'highestaudio', 
       filter: 'audioonly' 
@@ -69,7 +86,7 @@ app.get("/api/download/youtube", async (req, res) => {
       res.json({ 
         status: "ok", 
         title: info.videoDetails.title, 
-        link: format.url, // Link streaming audio langsung dari YouTube
+        link: format.url, 
         thumbnail: info.videoDetails.thumbnails[0].url, 
         user: info.videoDetails.author.name,
         duration: parseInt(info.videoDetails.lengthSeconds)
@@ -82,7 +99,7 @@ app.get("/api/download/youtube", async (req, res) => {
     res.status(500).json({ 
       error: "Failed to process YouTube video", 
       message: error.message,
-      tip: "Jika error 403, server Vercel mungkin sedang diblokir YouTube. Perlu setting cookies."
+      tip: "Pastikan YT_COOKIE di environment variable sudah benar dan masih aktif."
     });
   }
 });
