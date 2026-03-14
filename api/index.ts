@@ -4,6 +4,9 @@ import "dotenv/config";
 import yt from "youtube-search-api";
 import { createRequire } from "module";
 import { ytmp3 } from "ruhend-scraper";
+import "cheerio";
+import "axios";
+import "form-data";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
