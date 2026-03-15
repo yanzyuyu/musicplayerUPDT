@@ -46,7 +46,7 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (ONLY Ryzumi API - Optimized Logic)
+// 3. YouTube Download (Railway REST API)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
@@ -59,7 +59,7 @@ app.get("/api/download/youtube", async (req, res) => {
 
     console.log(`Requesting download for ID: ${videoId}`);
 
-    const response = await fetch(`https://api.ryzumi.net/api/downloader/ytmp3?url=${encodeURIComponent(cleanUrl)}`, {
+    const response = await fetch(`https://restapiyn-production.up.railway.app/api/yt/ytmp3?url=${encodeURIComponent(cleanUrl)}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'application/json'
@@ -70,29 +70,30 @@ app.get("/api/download/youtube", async (req, res) => {
     const contentType = response.headers.get("content-type");
     if (!response.ok || !contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.error("Ryzumi API Error Response:", text.substring(0, 200));
-      throw new Error(`API Ryzumi sedang bermasalah atau memblokir request (Status: ${response.status})`);
+      console.error("Railway API Error Response:", text.substring(0, 200));
+      throw new Error(`API ini sedang bermasalah atau memblokir request (Status: ${response.status})`);
     }
 
     const data = await response.json();
-    
-    if (data && data.url) {
-      res.json({ 
-        status: "ok", 
-        title: data.title || "YouTube Audio", 
-        link: data.url, 
-        thumbnail: data.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-        user: data.author || "YouTube Music" 
+    const payload = data?.data;
+
+    if (data?.success && payload) {
+      res.json({
+        status: "ok",
+        title: payload.title || "YouTube Audio",
+        link: payload.downloadUrl || payload.streamUrl,
+        thumbnail: payload.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        user: "YouTube Music"
       });
     } else {
-      throw new Error(data.message || "Data URL tidak ditemukan dalam respon API");
+      throw new Error(data?.message || "Data URL tidak ditemukan dalam respon API");
     }
   } catch (error: any) {
     console.error("Download Logic Error:", error.message);
-    res.status(500).json({ 
-      error: "Download failed", 
+    res.status(500).json({
+      error: "Download failed",
       message: error.message,
-      tip: "Coba lagi dalam beberapa saat, API Ryzumi mungkin sedang mengalami limit."
+      tip: "Coba lagi dalam beberapa saat, API mungkin sedang limit atau tidak tersedia."
     });
   }
 });
