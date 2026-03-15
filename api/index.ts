@@ -17,25 +17,33 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Helper Fetch dengan Timeout dan Flexible Parsing
-const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
+// Helper Fetch dengan Timeout dan Safety Check
+const fetchWithTimeout = async (url: string, options: any = {}, timeout = 12000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { 
+      ...options, 
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...(options.headers || {})
+      }
+    });
     clearTimeout(id);
+    
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
       return await response.json();
     }
-    return { error: "Bukan JSON response" };
+    return { status: false, message: "Bukan JSON (Blokir HTML)" };
   } catch (error) {
     clearTimeout(id);
     throw error;
   }
 };
 
-// 3. YouTube Download (ULTIMATE ROBUST - COBALT + FALLBACKS)
+// 3. YouTube Download (GOD MODE - MULTI API BYPASS)
 app.get("/api/download/youtube", async (req, res) => {
   const videoUrl = req.query.url as string;
   if (!videoUrl) return res.status(400).json({ error: "URL is required" });
@@ -43,57 +51,53 @@ app.get("/api/download/youtube", async (req, res) => {
 
   const sources = [
     {
-      name: "Cobalt (Premium Quality)",
-      url: "https://api.cobalt.tools/api/json",
-      method: "POST",
-      headers: { "Accept": "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ url: videoUrl, downloadMode: "audio", audioFormat: "mp3" }),
-      parse: (d: any) => d.status === "stream" || d.url ? { link: d.url, title: "YouTube Audio" } : null
+      name: "YanzBotz API",
+      url: `https://api.yanzbotz.my.id/api/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status === 200 && d.result ? { link: d.result.url || d.result.mp3, title: d.result.title } : null
     },
     {
-      name: "Itzpire",
+      name: "Botcahx API",
+      url: `https://api.botcahx.eu.org/api/dowloader/ytmp3?url=${encodeURIComponent(videoUrl)}&apikey=yanzbotz`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.url || d.result.mp3, title: d.result.title } : null
+    },
+    {
+      name: "Vreden API",
+      url: `https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status === 200 && d.result ? { link: d.result.download, title: d.result.title } : null
+    },
+    {
+      name: "Itzpire API",
       url: `https://itzpire.com/download/youtube?url=${encodeURIComponent(videoUrl)}`,
       parse: (d: any) => d.status === "success" && d.data ? { link: d.data.video || d.data.audio, title: d.data.title } : null
     },
     {
-      name: "Siputzx (New Endpoint)",
-      url: `https://api.siputzx.my.id/api/d/youtube?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status && d.data ? { link: d.data.mp3 || d.data.dl, title: d.data.title } : null
-    },
-    {
-        name: "DarkYasiya (Library)",
-        type: "library",
-        exec: async () => {
-          const { ytmp3 } = require("@dark-yasiya/yt-dl.js");
-          const d = await ytmp3(videoUrl);
-          return (d && d.status && d.download) ? { link: d.download.url, title: d.result?.title } : null;
-        }
-      }
+      name: "Cobalt API",
+      url: "https://api.cobalt.tools/api/json",
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ url: videoUrl, downloadMode: "audio", audioFormat: "mp3" }),
+      parse: (d: any) => (d.status === "stream" || d.url) ? { link: d.url, title: "YouTube Audio" } : null
+    }
   ];
 
   for (const source of sources) {
     try {
       console.log(`Mencoba sumber: ${source.name}`);
-      let result = null;
-      
-      if (source.type === "library") {
-        result = await source.exec!();
-      } else {
-        const response = await fetchWithTimeout(source.url!, {
-          method: source.method || "GET",
-          headers: source.headers || {},
-          body: source.body || null
-        });
-        result = source.parse!(response);
-      }
+      const data = await fetchWithTimeout(source.url, {
+        method: source.method || "GET",
+        headers: source.headers || {},
+        body: source.body || null
+      });
 
+      const result = source.parse(data);
       if (result && result.link) {
+        console.log(`Berhasil menggunakan: ${source.name}`);
         return res.json({ 
           status: "ok", 
           title: result.title || "YouTube Audio", 
           link: result.link, 
           thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-          user: "SoundStream" 
+          user: "YouTube Music" 
         });
       }
     } catch (e: any) {
@@ -101,7 +105,7 @@ app.get("/api/download/youtube", async (req, res) => {
     }
   }
 
-  res.status(500).json({ error: "Semua jalur download (termasuk Cobalt) sedang diblokir YouTube. Coba lagi dalam beberapa menit." });
+  res.status(500).json({ error: "Semua jalur download sedang macet total (YouTube Anti-Bot Update). Coba lagi nanti atau gunakan lagu lain." });
 });
 
 // ... Sisa API tetap sama
