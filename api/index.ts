@@ -36,14 +36,14 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeout = 15000)
     if (contentType && contentType.includes("application/json")) {
       return await response.json();
     }
-    return { status: false, message: "Respons bukan JSON (Blokir/HTML)" };
+    return { status: false, message: "Respons bukan JSON" };
   } catch (error) {
     clearTimeout(id);
     throw error;
   }
 };
 
-// 3. YouTube Download (ULTRABOOST - FRESH API LIST)
+// 3. YouTube Download (ULTIMATE BYPASS - BOT-STYLE APIs)
 app.get("/api/download/youtube", async (req, res) => {
   const videoUrl = req.query.url as string;
   if (!videoUrl) return res.status(400).json({ error: "URL is required" });
@@ -51,19 +51,19 @@ app.get("/api/download/youtube", async (req, res) => {
 
   const sources = [
     {
+      name: "BK9 API",
+      url: `https://bk9.fun/download/youtube?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.download || d.result.mp3, title: d.result.title } : null
+    },
+    {
+      name: "Sandip API",
+      url: `https://api.sandipbaruwal.com.np/ytdl?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.url || d.result.download, title: d.result.title } : null
+    },
+    {
       name: "Betabotz API",
       url: `https://api.betabotz.eu.org/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}&apikey=yanzbotz`,
       parse: (d: any) => d.status && d.result ? { link: d.result.mp3 || d.result.url, title: d.result.title } : null
-    },
-    {
-      name: "Alya API",
-      url: `https://api.alyapi.dev/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status && d.data ? { link: d.data.download_url || d.data.url, title: d.data.title } : null
-    },
-    {
-      name: "Vreden API",
-      url: `https://api.vreden.my.id/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status === 200 && d.result ? { link: d.result.download, title: d.result.title } : null
     },
     {
       name: "Itzpire API",
@@ -71,7 +71,7 @@ app.get("/api/download/youtube", async (req, res) => {
       parse: (d: any) => d.status === "success" && d.data ? { link: d.data.audio || d.data.video, title: d.data.title } : null
     },
     {
-      name: "Cobalt API (Global)",
+      name: "Cobalt Global",
       url: "https://api.cobalt.tools/api/json",
       method: "POST",
       headers: { "Accept": "application/json", "Content-Type": "application/json" },
@@ -105,10 +105,10 @@ app.get("/api/download/youtube", async (req, res) => {
     }
   }
 
-  res.status(500).json({ error: "Maaf, YouTube sedang memperbarui sistem keamanan mereka. Saat ini semua server download kami sedang penuh/diblokir. Silakan coba lagu lain atau ulangi besok." });
+  res.status(500).json({ error: "YouTube sedang melakukan maintenance sistem keamanan besar-besaran. Server download kami tidak dapat menembus blokir saat ini. Silakan gunakan lagu lain atau coba lagi nanti." });
 });
 
-// ... Sisa API tetap sama (iTunes, Spotify Search, dll)
+// ... Sisa API tetap sama
 app.get("/api/search/metadata", async (req, res) => {
   try {
     const query = req.query.query as string;
