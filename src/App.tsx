@@ -1001,12 +1001,8 @@ export default function App() {
       }
 
       if (trackInfo && trackInfo.url) {
-        const audioRes = await fetch(trackInfo.url);
-        const blob = await audioRes.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        await localforage.setItem('temp_playing_blob', blob);
-
-        const finalTrack = { ...trackInfo, url: objectUrl };
+        // LANGSUNG gunakan URL dari API (Tanpa fetch ke blob untuk menghindari CORS error)
+        const finalTrack = { ...trackInfo, url: trackInfo.url };
         setCurrentTrack(finalTrack);
         setIsPlaying(true);
         saveToHistory(finalTrack);
