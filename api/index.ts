@@ -46,30 +46,29 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (ONLY Vreden API v1)
+// 3. YouTube Download (ONLY Ryzumi API)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
-    const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
 
-    const response = await fetch(`https://api.vreden.my.id/api/v1/download/youtube/audio?url=${encodeURIComponent(videoUrl)}&quality=128`);
+    const response = await fetch(`https://api.ryzumi.net/api/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`);
     const data = await response.json();
     
-    // Sesuaikan dengan respon Vreden
-    if (data.status && data.result?.download?.url) {
+    // Ryzumi API structure: { title, url, thumbnail, author, ... }
+    if (data && data.url) {
       res.json({ 
         status: "ok", 
-        title: data.result.metadata?.title || "YouTube Audio", 
-        link: data.result.download.url, 
-        thumbnail: data.result.metadata?.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-        user: "YouTube Music" 
+        title: data.title || "YouTube Audio", 
+        link: data.url, // Link MP3 langsung
+        thumbnail: data.thumbnail || "", 
+        user: data.author || "YouTube Music" 
       });
     } else {
-      throw new Error(data.result?.download?.message || "Gagal mengambil link download");
+      throw new Error("Gagal mengambil data dari Ryzumi API");
     }
   } catch (error: any) {
-    console.error("Vreden Error:", error.message);
+    console.error("Ryzumi Error:", error.message);
     res.status(500).json({ error: "Download failed", message: error.message });
   }
 });
