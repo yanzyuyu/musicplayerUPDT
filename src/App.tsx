@@ -2002,7 +2002,6 @@ export default function App() {
       <audio 
         ref={audioRef} 
         src={currentTrack?.url} 
-        crossOrigin="anonymous" 
         onTimeUpdate={handleTimeUpdate} 
         onPause={handlePause}
         onPlay={handlePlay}
