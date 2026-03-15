@@ -78,10 +78,13 @@ app.get("/api/download/youtube", async (req, res) => {
     const payload = data?.data;
 
     if (data?.success && payload) {
+      const targetUrl = payload.downloadUrl || payload.streamUrl;
+      const proxyUrl = `/api/download/stream?url=${encodeURIComponent(targetUrl)}`;
+
       res.json({
         status: "ok",
         title: payload.title || "YouTube Audio",
-        link: payload.downloadUrl || payload.streamUrl,
+        link: proxyUrl,
         thumbnail: payload.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
         user: "YouTube Music"
       });
@@ -95,6 +98,39 @@ app.get("/api/download/youtube", async (req, res) => {
       message: error.message,
       tip: "Coba lagi dalam beberapa saat, API mungkin sedang limit atau tidak tersedia."
     });
+  }
+});
+
+// 3b. Proxy stream/download through backend to avoid CORS issues
+app.get("/api/download/stream", async (req, res) => {
+  try {
+    const target = req.query.url as string;
+    if (!target) return res.status(400).json({ error: "URL is required" });
+
+    const response = await fetch(target, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      }
+    });
+
+    // Forward status and relevant headers
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => {
+      if (key.toLowerCase() === 'transfer-encoding') return;
+      if (key.toLowerCase() === 'content-length') return;
+      res.setHeader(key, value);
+    });
+
+    // Stream the response body directly to the client
+    if (response.body) {
+      response.body.pipe(res);
+    } else {
+      const text = await response.text();
+      res.send(text);
+    }
+  } catch (error: any) {
+    console.error("Stream proxy error:", error.message);
+    res.status(500).json({ error: "Failed to proxy stream", message: error.message });
   }
 });
 
