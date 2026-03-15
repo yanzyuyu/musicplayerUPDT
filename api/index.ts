@@ -18,7 +18,7 @@ const app = express();
 app.use(express.json());
 
 // Helper Fetch dengan Timeout dan Safety Check
-const fetchWithTimeout = async (url: string, options: any = {}, timeout = 12000) => {
+const fetchWithTimeout = async (url: string, options: any = {}, timeout = 15000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
@@ -26,7 +26,7 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeout = 12000)
       ...options, 
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         ...(options.headers || {})
       }
     });
@@ -36,14 +36,14 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeout = 12000)
     if (contentType && contentType.includes("application/json")) {
       return await response.json();
     }
-    return { status: false, message: "Bukan JSON (Blokir HTML)" };
+    return { status: false, message: "Respons bukan JSON (Blokir/HTML)" };
   } catch (error) {
     clearTimeout(id);
     throw error;
   }
 };
 
-// 3. YouTube Download (GOD MODE - MULTI API BYPASS)
+// 3. YouTube Download (ULTRABOOST - FRESH API LIST)
 app.get("/api/download/youtube", async (req, res) => {
   const videoUrl = req.query.url as string;
   if (!videoUrl) return res.status(400).json({ error: "URL is required" });
@@ -51,14 +51,14 @@ app.get("/api/download/youtube", async (req, res) => {
 
   const sources = [
     {
-      name: "YanzBotz API",
-      url: `https://api.yanzbotz.my.id/api/downloader/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status === 200 && d.result ? { link: d.result.url || d.result.mp3, title: d.result.title } : null
+      name: "Betabotz API",
+      url: `https://api.betabotz.eu.org/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}&apikey=yanzbotz`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.mp3 || d.result.url, title: d.result.title } : null
     },
     {
-      name: "Botcahx API",
-      url: `https://api.botcahx.eu.org/api/dowloader/ytmp3?url=${encodeURIComponent(videoUrl)}&apikey=yanzbotz`,
-      parse: (d: any) => d.status && d.result ? { link: d.result.url || d.result.mp3, title: d.result.title } : null
+      name: "Alya API",
+      url: `https://api.alyapi.dev/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status && d.data ? { link: d.data.download_url || d.data.url, title: d.data.title } : null
     },
     {
       name: "Vreden API",
@@ -68,10 +68,10 @@ app.get("/api/download/youtube", async (req, res) => {
     {
       name: "Itzpire API",
       url: `https://itzpire.com/download/youtube?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status === "success" && d.data ? { link: d.data.video || d.data.audio, title: d.data.title } : null
+      parse: (d: any) => d.status === "success" && d.data ? { link: d.data.audio || d.data.video, title: d.data.title } : null
     },
     {
-      name: "Cobalt API",
+      name: "Cobalt API (Global)",
       url: "https://api.cobalt.tools/api/json",
       method: "POST",
       headers: { "Accept": "application/json", "Content-Type": "application/json" },
@@ -105,10 +105,10 @@ app.get("/api/download/youtube", async (req, res) => {
     }
   }
 
-  res.status(500).json({ error: "Semua jalur download sedang macet total (YouTube Anti-Bot Update). Coba lagi nanti atau gunakan lagu lain." });
+  res.status(500).json({ error: "Maaf, YouTube sedang memperbarui sistem keamanan mereka. Saat ini semua server download kami sedang penuh/diblokir. Silakan coba lagu lain atau ulangi besok." });
 });
 
-// ... Sisa API tetap sama
+// ... Sisa API tetap sama (iTunes, Spotify Search, dll)
 app.get("/api/search/metadata", async (req, res) => {
   try {
     const query = req.query.query as string;
