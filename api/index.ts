@@ -3,7 +3,12 @@ import fetch from "node-fetch";
 import "dotenv/config";
 import ytSearchApi from "youtube-search-api";
 import { createRequire } from "module";
-import ytdl from "@distube/ytdl-core";
+
+// Force bundle untuk Vercel
+import "yt-search";
+import "cheerio";
+import "axios";
+import "form-data";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
@@ -12,39 +17,87 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Helper Artist
-const getArtistName = (track: any) => {
+// Helper Fetch dengan Timeout dan Safety Check
+const fetchWithTimeout = async (url: string, options: any = {}, timeout = 15000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
   try {
-    if (track.artists && Array.isArray(track.artists) && track.artists.length > 0) {
-      return track.artists.map((a: any) => typeof a === 'string' ? a : a.name).join(", ");
-    }
-    if (track.artist) return typeof track.artist === 'string' ? track.artist : track.artist.name;
-    if (track.track?.artists) return track.track.artists.map((a: any) => a.name).join(", ");
-  } catch (e) {}
-  return "";
-};
-
-// Helper: Konversi Cookie Netscape ke JSON untuk YTDL
-const parseNetscapeCookies = (cookieText: string) => {
-  const cookies: any[] = [];
-  const lines = cookieText.split('\n');
-  lines.forEach(line => {
-    if (!line || line.startsWith('#') || line.trim() === '') return;
-    const parts = line.split(/\t/);
-    if (parts.length < 7) return;
-    cookies.push({
-      domain: parts[0],
-      path: parts[2],
-      secure: parts[3] === 'TRUE',
-      expirationDate: parseInt(parts[4]),
-      name: parts[5],
-      value: parts[6].trim()
+    const response = await fetch(url, { 
+      ...options, 
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...(options.headers || {})
+      }
     });
-  });
-  return cookies;
+    clearTimeout(id);
+    
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await response.json();
+    }
+    return { status: false, message: "Respons bukan JSON" };
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
 };
 
-// 1. Metadata Search
+// 3. YouTube Download (THE ULTIMATE AUTO-PIVOT - NO CONFIG NEEDED)
+app.get("/api/download/youtube", async (req, res) => {
+  const videoUrl = req.query.url as string;
+  if (!videoUrl) return res.status(400).json({ error: "URL is required" });
+  const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
+
+  // Daftar API yang sudah di-sinkronisasi dengan server downloader bot aktif
+  const sources = [
+    {
+      name: "BK9 Global",
+      url: `https://api.bk9.site/download/youtube?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.download || d.result.mp3, title: d.result.title } : null
+    },
+    {
+      name: "Alya Tech",
+      url: `https://api.alyapi.dev/api/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status && d.data ? { link: d.data.download_url || d.data.url, title: d.data.title } : null
+    },
+    {
+      name: "Kyuran API",
+      url: `https://api.kyuran.xyz/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.url, title: d.result.title } : null
+    },
+    {
+      name: "Betabotz (Public Key)",
+      url: `https://api.betabotz.eu.org/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}&apikey=freeapi`,
+      parse: (d: any) => d.status && d.result ? { link: d.result.mp3 || d.result.url, title: d.result.title } : null
+    }
+  ];
+
+  for (const source of sources) {
+    try {
+      console.log(`Mencoba sumber: ${source.name}`);
+      const data = await fetchWithTimeout(source.url, { method: "GET" });
+      const result = source.parse(data);
+
+      if (result && result.link) {
+        console.log(`Berhasil menggunakan: ${source.name}`);
+        return res.json({ 
+          status: "ok", 
+          title: result.title || "YouTube Audio", 
+          link: result.link, 
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
+          user: "SoundStream" 
+        });
+      }
+    } catch (e: any) {
+      console.error(`Sumber ${source.name} gagal: ${e.message}`);
+    }
+  }
+
+  res.status(500).json({ error: "Semua server download sedang sibuk karena proteksi baru YouTube. Silakan coba lagi nanti." });
+});
+
+// ... Sisa API tetap sama
 app.get("/api/search/metadata", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -56,8 +109,6 @@ app.get("/api/search/metadata", async (req, res) => {
     res.json(suggestions.filter((v:any, i:any, a:any) => a.findIndex((t:any) => (t.artist === v.artist)) === i));
   } catch (error) { res.status(500).json({ error: "Metadata search failed" }); }
 });
-
-// 2. YouTube Search
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -66,66 +117,6 @@ app.get("/api/search/youtube", async (req, res) => {
     res.json(results);
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
-
-// 3. YouTube Download (Stable with Auto-Cookie Parser)
-app.get("/api/download/youtube", async (req, res) => {
-  try {
-    const videoUrl = req.query.url as string;
-    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
-    const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
-
-    let agent: any = undefined;
-    const cookieEnv = process.env.YT_COOKIE;
-
-    if (cookieEnv) {
-      try {
-        // Cek apakah format JSON atau Netscape
-        const cookieData = cookieEnv.trim().startsWith('[') 
-          ? JSON.parse(cookieEnv) 
-          : parseNetscapeCookies(cookieEnv);
-        
-        if (cookieData.length > 0) {
-          agent = ytdl.createAgent(cookieData);
-          console.log("Agent diinisialisasi dengan cookies");
-        }
-      } catch (e) {
-        console.error("Gagal memproses YT_COOKIE:", e);
-      }
-    }
-
-    const options = agent ? { agent } : {
-      requestOptions: {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        }
-      }
-    };
-
-    const info = await ytdl.getInfo(videoUrl, options as any);
-    const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
-
-    if (format && format.url) {
-      return res.json({ 
-        status: "ok", 
-        title: info.videoDetails.title, 
-        link: format.url, 
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-        user: "YouTube Music" 
-      });
-    }
-
-    throw new Error("Format audio tidak ditemukan");
-  } catch (error: any) {
-    console.error("YTDL Error:", error.message);
-    res.status(500).json({ 
-      error: "Download failed", 
-      message: error.message,
-      tip: "Jika error 'Sign in', perbarui YT_COOKIE di Vercel dengan teks cookie baru."
-    });
-  }
-});
-
-// 4. Spotify Playlist Info
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
@@ -140,8 +131,6 @@ app.get("/api/spotify/playlist", async (req, res) => {
     res.json({ name: details.preview?.title || "Spotify Playlist", artwork_url: details.preview?.image || "", tracks: mapped });
   } catch (error) { res.status(500).json({ error: "Spotify fetch failed" }); }
 });
-
-// ... Sisa API tetap sama
 app.get("/api/spotify/trending", async (req, res) => {
   try {
     const results = await ytSearchApi.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 25);
