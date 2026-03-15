@@ -1013,8 +1013,21 @@ export default function App() {
       }
 
       if (trackInfo && trackInfo.url) {
-        // LANGSUNG gunakan URL dari API (Tanpa fetch ke blob untuk menghindari CORS error)
-        const finalTrack = { ...trackInfo, url: trackInfo.url };
+        // LOGIC BARU: Download dulu sampai selesai, baru diputar
+        console.log("Downloading audio to memory...");
+        const audioRes = await fetch(trackInfo.url);
+        
+        if (!audioRes.ok) {
+          throw new Error(`Gagal mengunduh file (Status: ${audioRes.status}). Server audio mungkin memblokir akses.`);
+        }
+
+        const blob = await audioRes.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        
+        // Simpan ke storage sementara agar bisa dibersihkan nanti
+        await localforage.setItem('temp_playing_blob', blob);
+
+        const finalTrack = { ...trackInfo, url: objectUrl };
         setCurrentTrack(finalTrack);
         setIsPlaying(true);
         saveToHistory(finalTrack);
