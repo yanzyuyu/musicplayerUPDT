@@ -24,6 +24,26 @@ const getArtistName = (track: any) => {
   return "";
 };
 
+// Helper: Konversi Cookie Netscape ke JSON untuk YTDL
+const parseNetscapeCookies = (cookieText: string) => {
+  const cookies: any[] = [];
+  const lines = cookieText.split('\n');
+  lines.forEach(line => {
+    if (!line || line.startsWith('#') || line.trim() === '') return;
+    const parts = line.split(/\t/);
+    if (parts.length < 7) return;
+    cookies.push({
+      domain: parts[0],
+      path: parts[2],
+      secure: parts[3] === 'TRUE',
+      expirationDate: parseInt(parts[4]),
+      name: parts[5],
+      value: parts[6].trim()
+    });
+  });
+  return cookies;
+};
+
 // 1. Metadata Search
 app.get("/api/search/metadata", async (req, res) => {
   try {
@@ -47,23 +67,32 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (Local with Cookie Bypass)
+// 3. YouTube Download (Stable with Auto-Cookie Parser)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
     const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
 
-    // Inisialisasi Agent dengan Cookies jika ada di ENV
     let agent: any = undefined;
-    if (process.env.YT_COOKIE) {
+    const cookieEnv = process.env.YT_COOKIE;
+
+    if (cookieEnv) {
       try {
-        const cookies = JSON.parse(process.env.YT_COOKIE);
-        agent = ytdl.createAgent(cookies);
-      } catch (e) { console.error("YT_COOKIE parsing failed"); }
+        // Cek apakah format JSON atau Netscape
+        const cookieData = cookieEnv.trim().startsWith('[') 
+          ? JSON.parse(cookieEnv) 
+          : parseNetscapeCookies(cookieEnv);
+        
+        if (cookieData.length > 0) {
+          agent = ytdl.createAgent(cookieData);
+          console.log("Agent diinisialisasi dengan cookies");
+        }
+      } catch (e) {
+        console.error("Gagal memproses YT_COOKIE:", e);
+      }
     }
 
-    // Ambil info video (Local extraction)
     const options = agent ? { agent } : {
       requestOptions: {
         headers: {
@@ -85,25 +114,18 @@ app.get("/api/download/youtube", async (req, res) => {
       });
     }
 
-    // Fallback Terakhir ke API Eksternal jika local gagal
-    const fallbackRes = await fetch(`https://api.siputzx.my.id/api/d/youtube?url=${encodeURIComponent(videoUrl)}`);
-    const fallbackData = await fallbackRes.json();
-    if (fallbackData.status && fallbackData.data) {
-      return res.json({ status: "ok", title: fallbackData.data.title, link: fallbackData.data.mp3, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
-    }
-
-    throw new Error("Gagal mengambil audio");
+    throw new Error("Format audio tidak ditemukan");
   } catch (error: any) {
-    console.error("Final Download Error:", error.message);
+    console.error("YTDL Error:", error.message);
     res.status(500).json({ 
       error: "Download failed", 
-      message: "YouTube memblokir koneksi server (Bot Detection). Silakan pasang YT_COOKIE di Vercel.",
-      details: error.message
+      message: error.message,
+      tip: "Jika error 'Sign in', perbarui YT_COOKIE di Vercel dengan teks cookie baru."
     });
   }
 });
 
-// ... Sisa API tetap sama
+// 4. Spotify Playlist Info
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
@@ -118,6 +140,8 @@ app.get("/api/spotify/playlist", async (req, res) => {
     res.json({ name: details.preview?.title || "Spotify Playlist", artwork_url: details.preview?.image || "", tracks: mapped });
   } catch (error) { res.status(500).json({ error: "Spotify fetch failed" }); }
 });
+
+// ... Sisa API tetap sama
 app.get("/api/spotify/trending", async (req, res) => {
   try {
     const results = await ytSearchApi.GetListByKeyword("Spotify Top Hits Indonesia 2024 official music", false, 25);
