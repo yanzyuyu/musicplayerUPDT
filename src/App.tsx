@@ -968,20 +968,20 @@ export default function App() {
         return;
       }
 
-      // 2. Gunakan API Ryzumi Langsung (Tanpa Vercel)
+      // 2. Gunakan API Sanka Vollerei Langsung
       const isYouTube = finalPermalinkUrl.includes('youtube.com') || finalPermalinkUrl.includes('youtu.be');
       
       let trackInfo: any = null;
       if (isYouTube) {
-        const ryzumiRes = await fetch(`https://api.ryzumi.net/api/downloader/ytmp3?url=${encodeURIComponent(finalPermalinkUrl)}`);
-        const ryzumiData = await ryzumiRes.json();
+        const sankaRes = await fetch(`https://www.sankavollerei.com/download/ytmp3?apikey=planaai&url=${encodeURIComponent(finalPermalinkUrl)}`);
+        const sankaData = await sankaRes.json();
         
-        if (ryzumiData && ryzumiData.url) {
+        if (sankaData.status && sankaData.result?.download) {
           trackInfo = {
-            title: metadataToUse?.title || ryzumiData.title,
-            url: ryzumiData.url,
-            user: metadataToUse?.user || ryzumiData.author || "YouTube Music",
-            thumbnail: metadataToUse?.thumbnail || ryzumiData.thumbnail,
+            title: metadataToUse?.title || sankaData.result.title,
+            url: sankaData.result.download, // Link file audio
+            user: metadataToUse?.user || sankaData.result.metadata?.channel || "YouTube Music",
+            thumbnail: metadataToUse?.thumbnail || sankaData.result.thumbnail,
             permalink_url: finalPermalinkUrl
           };
         }
