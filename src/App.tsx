@@ -630,12 +630,24 @@ export default function App() {
   const initAudioContext = () => {
     if (!audioCtxRef.current && audioRef.current) {
       try {
+        // HANYA hubungkan ke AudioContext jika ini bukan URL streaming YouTube
+        // karena YouTube memblokir CORS yang dibutuhkan oleh AudioContext/Visualizer
+        const isStreamingYT = currentTrack?.url?.includes('ytcontent.com') || 
+                             currentTrack?.url?.includes('googlevideo.com') ||
+                             currentTrack?.url?.includes('ryzumi.net') ||
+                             currentTrack?.url?.includes('sankavollerei.com');
+
+        if (isStreamingYT) {
+          console.log("Streaming YouTube terdeteksi: Melewati AudioContext untuk menghindari CORS error.");
+          return;
+        }
+
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
 
         const gainNode = ctx.createGain();
-        gainNode.gain.value = 1.5; // Boost volume 1.5x (150%)
+        gainNode.gain.value = 1.5; 
 
         const bassFilter = ctx.createBiquadFilter();
         bassFilter.type = 'lowshelf';
