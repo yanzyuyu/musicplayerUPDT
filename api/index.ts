@@ -78,13 +78,18 @@ app.get("/api/download/youtube", async (req, res) => {
     const payload = data?.data;
 
     if (data?.success && payload) {
-      const targetUrl = payload.downloadUrl || payload.streamUrl;
-      const proxyUrl = `/api/download/stream?url=${encodeURIComponent(targetUrl)}`;
+      // Prefer the Railway stream URL (CORS-friendly) if available.
+      const streamUrl = payload.streamUrl;
+      const downloadUrl = payload.downloadUrl;
+
+      const link = streamUrl
+        ? streamUrl
+        : `/api/download/stream?url=${encodeURIComponent(downloadUrl)}`;
 
       res.json({
         status: "ok",
         title: payload.title || "YouTube Audio",
-        link: proxyUrl,
+        link,
         thumbnail: payload.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
         user: "YouTube Music"
       });

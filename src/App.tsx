@@ -579,6 +579,21 @@ export default function App() {
     }
   };
 
+  const fetchRailwayYt = async (videoUrl: string) => {
+    try {
+      const res = await fetch(
+        `https://restapiyn-production.up.railway.app/api/yt/ytmp3?url=${encodeURIComponent(
+          videoUrl,
+        )}`,
+      );
+      const data = await res.json();
+      if (data?.success && data?.data) return data.data;
+    } catch (e) {
+      console.warn("Railway direct fetch failed:", e);
+    }
+    return null;
+  };
+
   const downloadTrack = async (
     e: React.MouseEvent,
     track: SearchResult | TrackDetails,
@@ -592,25 +607,44 @@ export default function App() {
       const isYouTube =
         permalink_url.includes("youtube.com") ||
         permalink_url.includes("youtu.be");
-      const endpoint = isYouTube ? "youtube" : "external";
-
-      const res = await fetch(
-        `${API_BASE_URL}/api/download/${endpoint}?url=${encodeURIComponent(permalink_url)}`,
-      );
-      const data = await res.json();
 
       let metadata: any = null;
       if (isYouTube) {
-        if (data && data.status === "ok" && data.link) {
+        // Prefer direct Railway API request if it supports CORS; fallback to our proxy if not.
+        const railwayData = await fetchRailwayYt(permalink_url);
+        if (railwayData && (railwayData.downloadUrl || railwayData.streamUrl)) {
+          const audioUrl = railwayData.streamUrl || railwayData.downloadUrl;
           metadata = {
-            title: data.title || track.title,
-            url: data.link,
-            user: data.user || "YouTube Music",
-            thumbnail: data.thumbnail || track.thumbnail || track.artwork_url,
+            title: track.title,
+            url: audioUrl,
+            user: "YouTube Music",
+            thumbnail: track.thumbnail || track.artwork_url,
             permalink_url: permalink_url,
           };
+        } else {
+          const res = await fetch(
+            `${API_BASE_URL}/api/download/youtube?url=${encodeURIComponent(
+              permalink_url,
+            )}`,
+          );
+          const data = await res.json();
+          if (data && data.status === "ok" && data.link) {
+            metadata = {
+              title: data.title || track.title,
+              url: data.link,
+              user: data.user || "YouTube Music",
+              thumbnail: data.thumbnail || track.thumbnail || track.artwork_url,
+              permalink_url: permalink_url,
+            };
+          }
         }
       } else {
+        const res = await fetch(
+          `${API_BASE_URL}/api/download/external?url=${encodeURIComponent(
+            permalink_url,
+          )}`,
+        );
+        const data = await res.json();
         if (data.status && data.data) {
           metadata = {
             ...data.data,
@@ -1139,26 +1173,46 @@ export default function App() {
 
       let trackInfo: any = null;
       if (isYouTube) {
-        const apiRes = await fetch(
-          `${API_BASE_URL}/api/download/youtube?url=${encodeURIComponent(finalPermalinkUrl)}`,
-        );
-        const apiData = await apiRes.json();
-
-        if (apiData.status === "ok" && apiData.link) {
+        // Prefer direct Railway API request if it supports CORS; fallback to backend proxy.
+        const railwayData = await fetchRailwayYt(finalPermalinkUrl);
+        if (railwayData && (railwayData.downloadUrl || railwayData.streamUrl)) {
+          const audioUrl = railwayData.streamUrl || railwayData.downloadUrl;
           trackInfo = {
-            title: metadataToUse?.title || apiData.title,
-            url: apiData.link,
-            user: metadataToUse?.user || apiData.user || "YouTube Music",
+            title: metadataToUse?.title || railwayData.title,
+            url: audioUrl,
+            user: metadataToUse?.user || "YouTube Music",
             thumbnail:
               metadataToUse?.artwork_url ||
               metadataToUse?.thumbnail ||
-              apiData.thumbnail,
+              railwayData.thumbnail,
             permalink_url: finalPermalinkUrl,
           };
+        } else {
+          const apiRes = await fetch(
+            `${API_BASE_URL}/api/download/youtube?url=${encodeURIComponent(
+              finalPermalinkUrl,
+            )}`,
+          );
+          const apiData = await apiRes.json();
+
+          if (apiData.status === "ok" && apiData.link) {
+            trackInfo = {
+              title: metadataToUse?.title || apiData.title,
+              url: apiData.link,
+              user: metadataToUse?.user || apiData.user || "YouTube Music",
+              thumbnail:
+                metadataToUse?.artwork_url ||
+                metadataToUse?.thumbnail ||
+                apiData.thumbnail,
+              permalink_url: finalPermalinkUrl,
+            };
+          }
         }
       } else {
         const res = await fetch(
-          `${API_BASE_URL}/api/download/external?url=${encodeURIComponent(finalPermalinkUrl)}`,
+          `${API_BASE_URL}/api/download/external?url=${encodeURIComponent(
+            finalPermalinkUrl,
+          )}`,
         );
         const data = await res.json();
         if (data.status && data.data) {
