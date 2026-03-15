@@ -968,7 +968,7 @@ export default function App() {
         return;
       }
 
-      // 2. Gunakan API Sanka Vollerei Langsung
+      // 2. Gunakan API Sanka Vollerei Langsung (HANYA UNTUK AUDIO URL)
       const isYouTube = finalPermalinkUrl.includes('youtube.com') || finalPermalinkUrl.includes('youtu.be');
       
       let trackInfo: any = null;
@@ -977,11 +977,12 @@ export default function App() {
         const sankaData = await sankaRes.json();
         
         if (sankaData.status && sankaData.result?.download) {
+          // PAKAI METADATA DARI SEARCH (metadataToUse) UNTUK TAMPILAN
           trackInfo = {
             title: metadataToUse?.title || sankaData.result.title,
-            url: sankaData.result.download, // Link file audio
+            url: sankaData.result.download, 
             user: metadataToUse?.user || sankaData.result.metadata?.channel || "YouTube Music",
-            thumbnail: metadataToUse?.thumbnail || sankaData.result.thumbnail,
+            thumbnail: metadataToUse?.artwork_url || metadataToUse?.thumbnail || sankaData.result.thumbnail,
             permalink_url: finalPermalinkUrl
           };
         }
@@ -989,7 +990,13 @@ export default function App() {
         const res = await fetch(`${API_BASE_URL}/api/download/external?url=${encodeURIComponent(finalPermalinkUrl)}`);
         const data = await res.json();
         if (data.status && data.data) {
-          trackInfo = { ...data.data, permalink_url: finalPermalinkUrl, thumbnail: data.data.thumbnail || data.data.image };
+          trackInfo = { 
+            ...data.data, 
+            title: metadataToUse?.title || data.data.title,
+            user: metadataToUse?.user || data.data.user || getArtistFromUrl(finalPermalinkUrl),
+            thumbnail: metadataToUse?.artwork_url || metadataToUse?.thumbnail || data.data.thumbnail,
+            permalink_url: finalPermalinkUrl 
+          };
         }
       }
 
