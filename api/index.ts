@@ -77,10 +77,14 @@ app.get("/api/download/youtube", async (req, res) => {
     const data = await response.json();
     const payload = data?.data;
 
+    // Ensure HTTPS to avoid mixed-content blocks on HTTPS pages
+    const ensureHttps = (url?: string) =>
+      url ? url.replace(/^http:\/\//i, "https://") : url;
+
     if (data?.success && payload) {
       // Prefer the Railway stream URL (CORS-friendly) if available.
-      const streamUrl = payload.streamUrl;
-      const downloadUrl = payload.downloadUrl;
+      const streamUrl = ensureHttps(payload.streamUrl);
+      const downloadUrl = ensureHttps(payload.downloadUrl);
 
       const link = streamUrl
         ? streamUrl

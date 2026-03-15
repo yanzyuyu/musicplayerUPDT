@@ -579,6 +579,13 @@ export default function App() {
     }
   };
 
+  const ensureHttps = (url: string) => {
+    if (!url) return url;
+    // Force https to avoid Mixed Content blocks when the page is served over HTTPS.
+    if (url.startsWith("http://")) return url.replace(/^http:\/\//, "https://");
+    return url;
+  };
+
   const fetchRailwayYt = async (videoUrl: string) => {
     try {
       const res = await fetch(
@@ -613,7 +620,7 @@ export default function App() {
         // Prefer direct Railway API request if it supports CORS; fallback to our proxy if not.
         const railwayData = await fetchRailwayYt(permalink_url);
         if (railwayData && (railwayData.downloadUrl || railwayData.streamUrl)) {
-          const audioUrl = railwayData.streamUrl || railwayData.downloadUrl;
+          const audioUrl = ensureHttps(railwayData.streamUrl || railwayData.downloadUrl);
           metadata = {
             title: track.title,
             url: audioUrl,
@@ -1176,7 +1183,7 @@ export default function App() {
         // Prefer direct Railway API request if it supports CORS; fallback to backend proxy.
         const railwayData = await fetchRailwayYt(finalPermalinkUrl);
         if (railwayData && (railwayData.downloadUrl || railwayData.streamUrl)) {
-          const audioUrl = railwayData.streamUrl || railwayData.downloadUrl;
+          const audioUrl = ensureHttps(railwayData.streamUrl || railwayData.downloadUrl);
           trackInfo = {
             title: metadataToUse?.title || railwayData.title,
             url: audioUrl,
