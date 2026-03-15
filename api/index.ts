@@ -3,12 +3,7 @@ import fetch from "node-fetch";
 import "dotenv/config";
 import ytSearchApi from "youtube-search-api";
 import { createRequire } from "module";
-
-// Force bundle untuk Vercel
-import "yt-search";
-import "cheerio";
-import "axios";
-import "form-data";
+import ytdl from "@distube/ytdl-core";
 
 const require = createRequire(import.meta.url);
 const spotifyUrlInfo = require("spotify-url-info");
@@ -17,98 +12,19 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Helper Fetch dengan Timeout dan Safety Check
-const fetchWithTimeout = async (url: string, options: any = {}, timeout = 15000) => {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+// Helper Artist
+const getArtistName = (track: any) => {
   try {
-    const response = await fetch(url, { 
-      ...options, 
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        ...(options.headers || {})
-      }
-    });
-    clearTimeout(id);
-    
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
+    if (track.artists && Array.isArray(track.artists) && track.artists.length > 0) {
+      return track.artists.map((a: any) => typeof a === 'string' ? a : a.name).join(", ");
     }
-    return { status: false, message: "Respons bukan JSON" };
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
+    if (track.artist) return typeof track.artist === 'string' ? track.artist : track.artist.name;
+    if (track.track?.artists) return track.track.artists.map((a: any) => a.name).join(", ");
+  } catch (e) {}
+  return "";
 };
 
-// 3. YouTube Download (ULTIMATE BYPASS - BOT-STYLE APIs)
-app.get("/api/download/youtube", async (req, res) => {
-  const videoUrl = req.query.url as string;
-  if (!videoUrl) return res.status(400).json({ error: "URL is required" });
-  const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
-
-  const sources = [
-    {
-      name: "BK9 API",
-      url: `https://bk9.fun/download/youtube?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status && d.result ? { link: d.result.download || d.result.mp3, title: d.result.title } : null
-    },
-    {
-      name: "Sandip API",
-      url: `https://api.sandipbaruwal.com.np/ytdl?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status && d.result ? { link: d.result.url || d.result.download, title: d.result.title } : null
-    },
-    {
-      name: "Betabotz API",
-      url: `https://api.betabotz.eu.org/api/download/ytmp3?url=${encodeURIComponent(videoUrl)}&apikey=yanzbotz`,
-      parse: (d: any) => d.status && d.result ? { link: d.result.mp3 || d.result.url, title: d.result.title } : null
-    },
-    {
-      name: "Itzpire API",
-      url: `https://itzpire.com/download/youtube?url=${encodeURIComponent(videoUrl)}`,
-      parse: (d: any) => d.status === "success" && d.data ? { link: d.data.audio || d.data.video, title: d.data.title } : null
-    },
-    {
-      name: "Cobalt Global",
-      url: "https://api.cobalt.tools/api/json",
-      method: "POST",
-      headers: { "Accept": "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ url: videoUrl, downloadMode: "audio", audioFormat: "mp3" }),
-      parse: (d: any) => (d.status === "stream" || d.url) ? { link: d.url, title: "YouTube Audio" } : null
-    }
-  ];
-
-  for (const source of sources) {
-    try {
-      console.log(`Mencoba sumber: ${source.name}`);
-      const data = await fetchWithTimeout(source.url, {
-        method: source.method || "GET",
-        headers: source.headers || {},
-        body: source.body || null
-      });
-
-      const result = source.parse(data);
-      if (result && result.link) {
-        console.log(`Berhasil menggunakan: ${source.name}`);
-        return res.json({ 
-          status: "ok", 
-          title: result.title || "YouTube Audio", 
-          link: result.link, 
-          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-          user: "YouTube Music" 
-        });
-      }
-    } catch (e: any) {
-      console.error(`Sumber ${source.name} gagal: ${e.message}`);
-    }
-  }
-
-  res.status(500).json({ error: "YouTube sedang melakukan maintenance sistem keamanan besar-besaran. Server download kami tidak dapat menembus blokir saat ini. Silakan gunakan lagu lain atau coba lagi nanti." });
-});
-
-// ... Sisa API tetap sama
+// 1. Metadata Search
 app.get("/api/search/metadata", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -120,6 +36,8 @@ app.get("/api/search/metadata", async (req, res) => {
     res.json(suggestions.filter((v:any, i:any, a:any) => a.findIndex((t:any) => (t.artist === v.artist)) === i));
   } catch (error) { res.status(500).json({ error: "Metadata search failed" }); }
 });
+
+// 2. YouTube Search
 app.get("/api/search/youtube", async (req, res) => {
   try {
     const query = req.query.query as string;
@@ -128,6 +46,64 @@ app.get("/api/search/youtube", async (req, res) => {
     res.json(results);
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
+
+// 3. YouTube Download (Local with Cookie Bypass)
+app.get("/api/download/youtube", async (req, res) => {
+  try {
+    const videoUrl = req.query.url as string;
+    if (!videoUrl) return res.status(400).json({ error: "URL is required" });
+    const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
+
+    // Inisialisasi Agent dengan Cookies jika ada di ENV
+    let agent: any = undefined;
+    if (process.env.YT_COOKIE) {
+      try {
+        const cookies = JSON.parse(process.env.YT_COOKIE);
+        agent = ytdl.createAgent(cookies);
+      } catch (e) { console.error("YT_COOKIE parsing failed"); }
+    }
+
+    // Ambil info video (Local extraction)
+    const options = agent ? { agent } : {
+      requestOptions: {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        }
+      }
+    };
+
+    const info = await ytdl.getInfo(videoUrl, options as any);
+    const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+
+    if (format && format.url) {
+      return res.json({ 
+        status: "ok", 
+        title: info.videoDetails.title, 
+        link: format.url, 
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
+        user: "YouTube Music" 
+      });
+    }
+
+    // Fallback Terakhir ke API Eksternal jika local gagal
+    const fallbackRes = await fetch(`https://api.siputzx.my.id/api/d/youtube?url=${encodeURIComponent(videoUrl)}`);
+    const fallbackData = await fallbackRes.json();
+    if (fallbackData.status && fallbackData.data) {
+      return res.json({ status: "ok", title: fallbackData.data.title, link: fallbackData.data.mp3, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "YouTube Music" });
+    }
+
+    throw new Error("Gagal mengambil audio");
+  } catch (error: any) {
+    console.error("Final Download Error:", error.message);
+    res.status(500).json({ 
+      error: "Download failed", 
+      message: "YouTube memblokir koneksi server (Bot Detection). Silakan pasang YT_COOKIE di Vercel.",
+      details: error.message
+    });
+  }
+});
+
+// ... Sisa API tetap sama
 app.get("/api/spotify/playlist", async (req, res) => {
   try {
     const url = req.query.url as string;
