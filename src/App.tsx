@@ -968,25 +968,26 @@ export default function App() {
         return;
       }
 
-      // 2. Gunakan API Vercel Internal
+      // 2. Gunakan API Ryzumi Langsung (Tanpa Vercel)
       const isYouTube = finalPermalinkUrl.includes('youtube.com') || finalPermalinkUrl.includes('youtu.be');
-      const endpoint = isYouTube ? 'youtube' : 'external';
-
-      const res = await fetch(`${API_BASE_URL}/api/download/${endpoint}?url=${encodeURIComponent(finalPermalinkUrl)}`);
-      const data = await res.json();
-
+      
       let trackInfo: any = null;
       if (isYouTube) {
-        if (data && data.status === 'ok') {
+        const ryzumiRes = await fetch(`https://api.ryzumi.net/api/downloader/ytmp3?url=${encodeURIComponent(finalPermalinkUrl)}`);
+        const ryzumiData = await ryzumiRes.json();
+        
+        if (ryzumiData && ryzumiData.url) {
           trackInfo = {
-            title: metadataToUse?.title || data.title,
-            url: data.link,
-            user: metadataToUse?.user || data.user || "YouTube Music",
-            thumbnail: metadataToUse?.thumbnail || data.thumbnail,
+            title: metadataToUse?.title || ryzumiData.title,
+            url: ryzumiData.url,
+            user: metadataToUse?.user || ryzumiData.author || "YouTube Music",
+            thumbnail: metadataToUse?.thumbnail || ryzumiData.thumbnail,
             permalink_url: finalPermalinkUrl
           };
         }
       } else {
+        const res = await fetch(`${API_BASE_URL}/api/download/external?url=${encodeURIComponent(finalPermalinkUrl)}`);
+        const data = await res.json();
         if (data.status && data.data) {
           trackInfo = { ...data.data, permalink_url: finalPermalinkUrl, thumbnail: data.data.thumbnail || data.data.image };
         }
