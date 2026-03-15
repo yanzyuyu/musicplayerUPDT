@@ -12,7 +12,7 @@ const { getDetails, getTracks } = spotifyUrlInfo(fetch);
 const app = express();
 app.use(express.json());
 
-// Cookies Fallback
+// Cookies Fallback (Tanam Langsung)
 const DEFAULT_COOKIES = [{"domain":".youtube.com","expirationDate":1792988950.767228,"hostOnly":false,"httpOnly":true,"name":"LOGIN_INFO","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"AFmmF2swRQIgPS3tWSAREOck0POuMywnX19AcHmBcTvepOxrFOkz_J4CIQDPoHunHUrIvuMLREh4Y8OeIZQH7dxn425PVXL6k2cz_Q:QUQ3MjNmeHdGRldtX3dnTEZjQlphdjBJN1VJUkp4TFV3OVdEa2RQRHhZSVFzTlZIQm5pNGk5Qkx1N0drMU5VMk5CSnRDZkZGVjlEcTd1R0JrY0pMc2c0T0haOUZpUHJJOEdlcEhhUlV5TmRNVEp3Tlhsc0hrV0RsTHZWNFB6QXY1TGN5ODVycG9WZk9Vb0tOTy1fejAtSXdXVWJETENzRkVn"},{"domain":".youtube.com","expirationDate":1791641058.644713,"hostOnly":false,"httpOnly":true,"name":"__Secure-1PSIDTS","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"sidts-CjQBmkD5S4w47WITAXJhrp3F61EKcvI2lYIW2lHtewEpoLqASOHkgzcPQod1whJfew_Aef-LEAA"},{"domain":".youtube.com","expirationDate":1791641058.645,"hostOnly":false,"httpOnly":true,"name":"__Secure-3PSIDTS","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"sidts-CjQBmkD5S4w47WITAXJhrp3F61EKcvI2lYIW2lHtewEpoLqASOHkgzcPQod1whJfew_Aef-LEAA"},{"domain":".youtube.com","expirationDate":1806748794.894248,"hostOnly":false,"httpOnly":true,"name":"HSID","path":"/","sameSite":"unspecified","secure":false,"session":false,"storeId":"0","value":"Awr_kE6WI5bThDwVS"},{"domain":".youtube.com","expirationDate":1806748794.894395,"hostOnly":false,"httpOnly":true,"name":"SSID","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"AMrHRK7HmyZ1z1F2s"},{"domain":".youtube.com","expirationDate":1806748794.894465,"hostOnly":false,"httpOnly":false,"name":"APISID","path":"/","sameSite":"unspecified","secure":false,"session":false,"storeId":"0","value":"a9UA-OrTLxhDMh4e/A4Kr1aeweU9KMhLcQ"},{"domain":".youtube.com","expirationDate":1806748794.894546,"hostOnly":false,"httpOnly":false,"name":"SAPISID","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"nASl22Zbi2aNfs-s/AnI5fSXlievSILYzq"},{"domain":".youtube.com","expirationDate":1806748794.894611,"hostOnly":false,"httpOnly":false,"name":"__Secure-1PAPISID","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"nASl22Zbi2aNfs-s/AnI5fSXlievSILYzq"},{"domain":".youtube.com","expirationDate":1806748794.894681,"hostOnly":false,"httpOnly":false,"name":"__Secure-3PAPISID","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"nASl22Zbi2aNfs-s/AnI5fSXlievSILYzq"},{"domain":".youtube.com","expirationDate":1778204268.024667,"hostOnly":false,"httpOnly":true,"name":"NID","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"526=s_n1CdyoUOJrt-YXWnlW4VY5OLjMXBQFv0huAZ40XcL4G6fLlmfQJ4fAseiyGcUTh9JjFaYcM07_CCwmvvU5CdgI_GbQQR8bAZzSUmxj4rUIMdWBLsTXCL8udp7uyyxgH4oQkjbbtwezxRQtQzY0bz2kJuj8Tv4ef7vQ_4bN_TriTu-n_HxIxuFxCLGyJY2IfWCjgSFJsm7a9Jf1T7k2-DQgN1c"},{"domain":".youtube.com","expirationDate":1806748794.895109,"hostOnly":false,"httpOnly":false,"name":"SID","path":"/","sameSite":"unspecified","secure":false,"session":false,"storeId":"0","value":"g.a0007Qg4kGyGTfQiPCXx-Talp7wEp7r_VLb6qNWtiw9kM9Qa1ezvzEz-SYZc6Ng8wfSDk1tcxAACgYKAS8SARESFQHGX2Mi_JK5cVuB4n3lf3gpR14AURoVAUF8yKqKyglL2OiNx8yRdL9KXJFe0076"},{"domain":".youtube.com","expirationDate":1806748794.895189,"hostOnly":false,"httpOnly":true,"name":"__Secure-1PSID","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"g.a0007Qg4kGyGTfQiPCXx-Talp7wEp7r_VLb6qNWtiw9kM9Qa1ezv6746XW0LpTIMdtSHzzyy_QACgYKAbQSARESFQHGX2MieWZsPdnBY3Lpy069ogcGNBoVAUF8yKqnW8xwM5YI-wtjJ4CMGO9I0076"},{"domain":".youtube.com","expirationDate":1806748794.89526,"hostOnly":false,"httpOnly":true,"name":"__Secure-3PSID","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"g.a0007Qg4kGyGTfQiPCXx-Talp7wEp7r_VLb6qNWtiw9kM9Qa1ezvtB6VUZ9wnFRLmQaCpGngZQACgYKAYMSARESFQHGX2Mi73tfXuYYxuSUu217hPxfQRoVAUF8yKofB6g_flJVYx1vsojI4XKp0076"},{"domain":".youtube.com","expirationDate":1808102783.065043,"hostOnly":false,"httpOnly":false,"name":"PREF","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"f4=4000000&f6=40000000&tz=Asia.Jakarta&f7=150&f5=20000"},{"domain":".youtube.com","expirationDate":1805078789.292374,"hostOnly":false,"httpOnly":false,"name":"SIDCC","path":"/","sameSite":"unspecified","secure":false,"session":false,"storeId":"0","value":"AKEyXzUyOgI11TrkdX-J2Q9hup86lf_nGKLbxtGStesGAAn3BM0Ux2Stb1iXgHs-DAEOff9RYQ"},{"domain":".youtube.com","expirationDate":1805078789.292508,"hostOnly":false,"httpOnly":true,"name":"__Secure-1PSIDCC","path":"/","sameSite":"unspecified","secure":true,"session":false,"storeId":"0","value":"AKEyXzUHn_IXsEZpfYfsXttSgOg5xepjWfLKf6rGqeFLqb9CfGXqEcXpvxjlkghva2Hn87IBm8A"},{"domain":".youtube.com","expirationDate":1805078789.292625,"hostOnly":false,"httpOnly":true,"name":"__Secure-3PSIDCC","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"AKEyXzXsYaGDQuz6CkbneUZc-e1HEfpFABNoLVqRFholhlqVpi-hbDXOyK25sJp2BJtWgVn2mXM"},{"domain":".youtube.com","expirationDate":1789094789.291877,"hostOnly":false,"httpOnly":true,"name":"VISITOR_INFO1_LIVE","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"KHt_pJm4dCU"},{"domain":".youtube.com","expirationDate":1789094789.29212,"hostOnly":false,"httpOnly":true,"name":"VISITOR_PRIVACY_METADATA","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"CgJJRBIEGgAgbQ%3D%3D"},{"domain":".youtube.com","expirationDate":1789094777.706383,"hostOnly":false,"httpOnly":true,"name":"__Secure-YNID","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"16.YT=ZHJhPrepoEduo0saPaoq8QnT0ktj46yCE2xnCHmQnqJnyu7VsErnz0HD2P0xVi9b0Zj7KSJmdHodivf5BRMciT3JhjKtZwaAHrLzWP9oOT-49KYEdp91brsvAJpS7zL18shKEentQgAo0WJqytXlI5nIJLswx0kbGsPG3PZbyz3Ty3zeBn6jlv567ph_hy_l6265IRHu3E2UPT8t-PM-Z6Wk4vts2r_YkkXgRA8niVzBAK6b7sp57y-OtzO15h5iUdkJJidf8qO5rzaYja072SQxr0bGHO5NG81eIqw708AQpwzn8oap945mcb6TNwy0ySN4XgMhbjnWbcgZg89dGw"},{"domain":".youtube.com","hostOnly":false,"httpOnly":true,"name":"YSC","path":"/","sameSite":"no_restriction","secure":true,"session":true,"storeId":"0","value":"C5O70q9Kboo"},{"domain":".youtube.com","expirationDate":1789094777.710016,"hostOnly":false,"httpOnly":true,"name":"__Secure-ROLLOUT_TOKEN","path":"/","sameSite":"no_restriction","secure":true,"session":false,"storeId":"0","value":"CPf4wJ2gwe3nTBDN5IamgumPAxjx9vrZ8aCTAw%3D%3D"}];
 
 // Helper Artist
@@ -50,51 +50,56 @@ app.get("/api/search/youtube", async (req, res) => {
   } catch (error) { res.status(500).json({ error: "YouTube search failed" }); }
 });
 
-// 3. YouTube Download (Hybrid Local + Fallback API)
+// 3. YouTube Download (New Vreden API v1 + Fallbacks)
 app.get("/api/download/youtube", async (req, res) => {
   try {
     const videoUrl = req.query.url as string;
     if (!videoUrl) return res.status(400).json({ error: "URL is required" });
     const videoId = videoUrl.split('v=')[1]?.split('&')[0] || videoUrl.split('/').pop();
 
+    // PRIORITAS 1: Vreden API v1 (Yang Anda Temukan)
     try {
-      // PERCOBAAN 1: Local Extraction dengan Cookies
-      const agent = ytdl.createAgent(DEFAULT_COOKIES);
-      const info = await ytdl.getInfo(videoUrl, { agent } as any);
+      console.log("Mencoba Vreden v1 API...");
+      const vredenRes = await fetch(`https://api.vreden.my.id/api/v1/download/youtube/audio?url=${encodeURIComponent(videoUrl)}&quality=128`);
+      const vredenData = await vredenRes.json();
       
-      // Ambil audio format apapun (paling longgar)
-      const format = info.formats.find(f => f.hasAudio && f.url);
-
-      if (format && format.url) {
+      // Jika status true dan ada link download (berdasarkan asumsi field sukses)
+      if (vredenData.status && vredenData.result?.download?.url) {
         return res.json({ 
           status: "ok", 
-          title: info.videoDetails.title, 
-          link: format.url, 
-          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-          user: "Local Server" 
+          title: vredenData.result.metadata?.title || "YouTube Audio", 
+          link: vredenData.result.download.url, 
+          thumbnail: vredenData.result.metadata?.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
+          user: "Vreden Engine" 
         });
       }
-    } catch (localError: any) {
-      console.error("Local YTDL failed, trying fallback API...", localError.message);
+    } catch (e) {
+      console.error("Vreden v1 failed, trying fallbacks...");
     }
 
-    // PERCOBAAN 2: Fallback ke BK9 API (Sangat stabil)
+    // PRIORITAS 2: Local Extraction (Pakai Cookies)
+    try {
+      const agent = ytdl.createAgent(DEFAULT_COOKIES);
+      const info = await ytdl.getInfo(videoUrl, { agent } as any);
+      const format = info.formats.find(f => f.hasAudio && f.url);
+      if (format && format.url) {
+        return res.json({ status: "ok", title: info.videoDetails.title, link: format.url, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "Local Engine" });
+      }
+    } catch (e) {
+      console.error("Local failed, trying BK9...");
+    }
+
+    // PRIORITAS 3: BK9 API (Backup)
     const bk9Res = await fetch(`https://api.bk9.site/download/youtube?url=${encodeURIComponent(videoUrl)}`);
     const bk9Data = await bk9Res.json();
     if (bk9Data.status && bk9Data.result) {
-      return res.json({ 
-        status: "ok", 
-        title: bk9Data.result.title || "YouTube Audio", 
-        link: bk9Data.result.download || bk9Data.result.mp3, 
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, 
-        user: "Global Server" 
-      });
+      return res.json({ status: "ok", title: bk9Data.result.title, link: bk9Data.result.download || bk9Data.result.mp3, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, user: "BK9 Engine" });
     }
 
-    throw new Error("Semua metode download gagal");
+    throw new Error("Semua metode download gagal (Vreden, Local, BK9)");
   } catch (error: any) {
-    console.error("Final Error:", error.message);
-    res.status(500).json({ error: "Gagal mengambil link download", details: error.message });
+    console.error("Final Download Error:", error.message);
+    res.status(500).json({ error: "Download failed", message: error.message });
   }
 });
 
